@@ -171,16 +171,16 @@ def verify_otp(data: VerifyOTPSchema, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(user)
 
-    token = create_access_token({"sub": str(user.id), "role": user.role.value, "phone": user.phone})
+    token = create_access_token({"sub": str(user.id), "role": UserRole.CITIZEN.value, "phone": user.phone})
     return TokenResponseSchema(
         access_token=token,
-        role=user.role,
+        role=UserRole.CITIZEN,
         user_id=user.id,
         full_name=user.full_name,
         phone=user.phone,
         email=user.email,
         requires_face_enrollment=False,
-        is_active=user.is_active
+        is_active=True
     )
 
 @router.post("/worker/enroll-face", response_model=TokenResponseSchema)

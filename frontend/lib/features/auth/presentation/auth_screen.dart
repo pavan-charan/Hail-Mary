@@ -14,9 +14,9 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   UserRole _selectedRole = UserRole.CITIZEN;
-  final TextEditingController _phoneController = TextEditingController(text: '+919876543210');
-  final TextEditingController _otpController = TextEditingController(text: '123456');
-  final TextEditingController _fullNameController = TextEditingController(text: 'Kochi Citizen');
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _otpController = TextEditingController();
+  final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController(text: 'admin@sanitation.gov.in');
   final TextEditingController _passwordController = TextEditingController(text: 'Admin@12345');
 
@@ -219,10 +219,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   Widget _buildPhoneOtpForm(AuthState authState) {
+    final isWorker = _selectedRole == UserRole.WORKER;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_selectedRole == UserRole.WORKER)
+        if (isWorker)
           Container(
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(10),
@@ -248,17 +250,39 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           keyboardType: TextInputType.phone,
           enabled: !authState.otpSent,
           decoration: InputDecoration(
-            labelText: 'Mobile Phone Number',
+            labelText: isWorker ? 'Registered Worker Phone' : 'Citizen Mobile Number',
+            hintText: isWorker ? '+919876543210' : '9381316232',
+            helperText: isWorker ? 'Enter pre-registered worker number' : 'Live SMS OTP will be sent via Twilio',
             prefixIcon: const Icon(Icons.phone_iphone_rounded),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             suffixIcon: authState.otpSent
                 ? IconButton(
                     icon: const Icon(Icons.edit, size: 18),
+                    tooltip: 'Change Phone Number',
                     onPressed: () => ref.read(authProvider.notifier).resetOtpState(),
                   )
                 : null,
           ),
         ),
+        if (!authState.otpSent) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ActionChip(
+              avatar: const Icon(Icons.touch_app_rounded, size: 14),
+              label: Text(
+                isWorker ? 'Fill Registered Worker (+919876543210)' : 'Fill Your Phone (+919381316232)',
+                style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+              backgroundColor: Colors.grey[100],
+              onPressed: () {
+                setState(() {
+                  _phoneController.text = isWorker ? '+919876543210' : '+919381316232';
+                });
+              },
+            ),
+          ),
+        ],
         if (authState.otpSent) ...[
           const SizedBox(height: 16),
           TextField(
@@ -266,7 +290,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               labelText: 'Enter 6-Digit OTP',
-              helperText: 'Development default: 123456',
+              hintText: '123456',
+              helperText: 'Enter SMS OTP received (or dev code: 123456)',
               prefixIcon: const Icon(Icons.lock_clock_outlined),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -277,6 +302,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               controller: _fullNameController,
               decoration: InputDecoration(
                 labelText: 'Full Name (Optional)',
+                hintText: 'e.g. Priya Sharma',
                 prefixIcon: const Icon(Icons.badge_outlined),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -289,12 +315,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ? null
               : () {
                   final phone = _phoneController.text.trim();
+                  if (phone.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter your mobile phone number')),
+                    );
+                    return;
+                  }
                   if (!authState.otpSent) {
                     ref.read(authProvider.notifier).requestOtp(phone, _selectedRole);
                   } else {
+                    final otpCode = _otpController.text.trim().isNotEmpty ? _otpController.text.trim() : '123456';
                     ref.read(authProvider.notifier).verifyOtp(
                           phone: phone,
-                          otp: _otpController.text.trim(),
+                          otp: otpCode,
                           role: _selectedRole,
                           fullName: _fullNameController.text.trim().isNotEmpty ? _fullNameController.text.trim() : null,
                         );
