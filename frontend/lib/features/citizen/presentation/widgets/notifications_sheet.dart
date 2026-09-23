@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/theme.dart';
-import '../../../../core/network/api_client.dart';
-import '../../../auth/state/auth_notifier.dart';
 
 class NotificationItem {
   final int id;

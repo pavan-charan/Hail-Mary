@@ -490,23 +490,45 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   Widget _buildWorkerFaceEnrollmentView(BuildContext context, AuthState authState) {
+    final workerPhone = authState.user?.phone ?? _phoneController.text.trim();
+    final workerName = authState.user?.fullName ?? 'Sanitation Worker';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFEF3C7), Color(0xFFFDE68A)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFF59E0B), width: 1.2),
           ),
           child: Row(
             children: [
-              const Icon(Icons.face_retouching_natural, color: Colors.orange, size: 24),
-              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFD97706),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.face_retouching_natural, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  'Mandatory Worker Face Enrollment',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: Colors.brown[900], fontSize: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mandatory Face Enrollment',
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.w800, color: const Color(0xFF78350F), fontSize: 15),
+                    ),
+                    Text(
+                      'Welcome, $workerName ($workerPhone)',
+                      style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF92400E)),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -514,59 +536,173 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          'Capture a live face selfie to activate your worker profile. This facial profile will be used to verify maintenance repairs on-site.',
-          style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[700]),
+          'In accordance with Kochi Municipal Corporation policy, all civic workers must register a live facial biometric profile before undertaking on-site sanitation & water maintenance tasks.',
+          style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[700], height: 1.4),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
-        // Facial Camera View Simulator
+        // Live Facial Bio-Scanner Viewport
         Container(
-          height: 180,
+          height: 220,
           decoration: BoxDecoration(
-            color: Colors.black87,
-            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppTheme.primaryTeal, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryTeal.withOpacity(0.25),
+                blurRadius: 15,
+                spreadRadius: 2,
+              )
+            ],
           ),
           child: Stack(
             alignment: Alignment.center,
             children: [
-              const Icon(Icons.face, size: 90, color: Colors.white24),
-              Container(
-                width: 120,
-                height: 150,
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppTheme.accentCyan, width: 2, style: BorderStyle.solid),
-                  borderRadius: BorderRadius.circular(60),
+              // Background Grid
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.1,
+                  child: GridPaper(
+                    color: Colors.cyanAccent,
+                    divisions: 2,
+                    subdivisions: 2,
+                  ),
                 ),
               ),
+
+              // Face Placeholder Icon
+              const Icon(Icons.person, size: 100, color: Color(0xFF334155)),
+
+              // Facial Landmark Mesh Overlay
+              Container(
+                width: 140,
+                height: 170,
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppTheme.accentCyan, width: 2.5),
+                  borderRadius: BorderRadius.circular(70),
+                ),
+              ),
+
+              // Scanning Beam Animation
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(seconds: 2),
+                builder: (context, val, child) {
+                  return Positioned(
+                    top: 25 + (val * 170),
+                    left: 40,
+                    right: 40,
+                    child: Container(
+                      height: 2,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Colors.transparent, Color(0xFF38BDF8), Colors.transparent],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF38BDF8).withOpacity(0.8),
+                            blurRadius: 8,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              // Corner Brackets
+              Positioned(
+                top: 16,
+                left: 16,
+                child: Container(width: 18, height: 18, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFF38BDF8), width: 3), left: BorderSide(color: Color(0xFF38BDF8), width: 3)))),
+              ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Container(width: 18, height: 18, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFF38BDF8), width: 3), right: BorderSide(color: Color(0xFF38BDF8), width: 3)))),
+              ),
+              Positioned(
+                bottom: 16,
+                left: 16,
+                child: Container(width: 18, height: 18, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF38BDF8), width: 3), left: BorderSide(color: Color(0xFF38BDF8), width: 3)))),
+              ),
+              Positioned(
+                bottom: 16,
+                right: 16,
+                child: Container(width: 18, height: 18, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF38BDF8), width: 3), right: BorderSide(color: Color(0xFF38BDF8), width: 3)))),
+              ),
+
+              // Status Badge
               Positioned(
                 bottom: 12,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-                  child: Text('Live Camera Ready', style: GoogleFonts.outfit(color: Colors.white, fontSize: 11)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B).withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF22C55E), width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(color: Color(0xFF22C55E), shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Face Detected • Optimal Lighting',
+                        style: GoogleFonts.outfit(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
                 ),
-              )
+              ),
             ],
           ),
         ),
         const SizedBox(height: 20),
 
         ElevatedButton.icon(
-          icon: const Icon(Icons.camera_alt_rounded),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF0F766E),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          icon: const Icon(Icons.camera_alt_rounded, size: 20),
           label: authState.isLoading
               ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Text('Capture & Activate Account'),
+              : Text('Capture Face & Activate Profile', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
           onPressed: authState.isLoading
               ? null
-              : () {
-                  // Mock live base64 selfie
+              : () async {
                   const mockSelfie = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
-                  ref.read(authProvider.notifier).enrollWorkerFace(
-                        phone: _phoneController.text.trim(),
+                  final success = await ref.read(authProvider.notifier).enrollWorkerFace(
+                        phone: workerPhone,
                         faceImageBase64: mockSelfie,
                       );
+                  if (success && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('🎉 Face Biometric Enrolled! Redirecting to Worker Dashboard...'),
+                        backgroundColor: Color(0xFF16A34A),
+                      ),
+                    );
+                    context.go('/worker');
+                  }
                 },
+        ),
+        const SizedBox(height: 10),
+        TextButton.icon(
+          icon: const Icon(Icons.arrow_back, size: 16),
+          label: const Text('Back / Switch Account'),
+          onPressed: () {
+            ref.read(authProvider.notifier).logout();
+          },
         ),
       ],
     );

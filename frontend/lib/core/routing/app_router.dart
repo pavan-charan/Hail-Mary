@@ -17,10 +17,16 @@ class RouterNotifier extends ChangeNotifier {
   }
 
   String? redirect(BuildContext context, GoRouterState state) {
-    final user = _ref.read(authProvider).user;
+    final authState = _ref.read(authProvider);
+    final user = authState.user;
     final isAuthPath = state.uri.toString() == '/auth';
 
     if (user == null) {
+      return isAuthPath ? null : '/auth';
+    }
+
+    // If Worker requires facial enrollment, enforce staying on /auth until completed
+    if (user.role == UserRole.WORKER && (user.requiresFaceEnrollment || authState.requiresFaceEnrollment)) {
       return isAuthPath ? null : '/auth';
     }
 
