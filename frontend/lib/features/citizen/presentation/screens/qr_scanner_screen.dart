@@ -244,6 +244,30 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
           // Live Camera Scanner View
           MobileScanner(
             controller: _scannerController,
+            errorBuilder: (context, error, child) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.videocam_off_rounded, color: Colors.white54, size: 48),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Webcam Access Prompt in Browser',
+                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Please click "Allow" in Chrome for camera access, or use the quick test facility chips below.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.outfit(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
             onDetect: (capture) {
               final List<Barcode> barcodes = capture.barcodes;
               for (final barcode in barcodes) {
