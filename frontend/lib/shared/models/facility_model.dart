@@ -79,4 +79,46 @@ class FacilityModel {
       lastVerifiedFormatted: json['last_verified_formatted'] ?? 'Verified Today',
     );
   }
+
+  FacilityModel copyWith({
+    int? id,
+    String? facilityId,
+    String? name,
+    FacilityType? facilityType,
+    double? latitude,
+    double? longitude,
+    String? address,
+    String? ward,
+    GenderAccess? genderAccess,
+    bool? wheelchairAccessible,
+    bool? waterAvailability,
+    String? openingTime,
+    String? closingTime,
+    FacilityStatus? status,
+    double? confidenceScore,
+    double? distanceMeters,
+    int? walkingTimeMinutes,
+    String? lastVerifiedFormatted,
+  }) {
+    return FacilityModel(
+      id: id ?? this.id,
+      facilityId: facilityId ?? this.facilityId,
+      name: name ?? this.name,
+      facilityType: facilityType ?? this.facilityType,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      address: address ?? this.address,
+      ward: ward ?? this.ward,
+      genderAccess: genderAccess ?? this.genderAccess,
+      wheelchairAccessible: wheelchairAccessible ?? this.wheelchairAccessible,
+      waterAvailability: waterAvailability ?? this.waterAvailability,
+      openingTime: openingTime ?? this.openingTime,
+      closingTime: closingTime ?? this.closingTime,
+      status: status ?? this.status,
+      confidenceScore: confidenceScore ?? this.confidenceScore,
+      distanceMeters: distanceMeters ?? this.distanceMeters,
+      walkingTimeMinutes: walkingTimeMinutes ?? this.walkingTimeMinutes,
+      lastVerifiedFormatted: lastVerifiedFormatted ?? this.lastVerifiedFormatted,
+    );
+  }
 }

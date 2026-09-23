@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../shared/models/facility_model.dart';
@@ -42,18 +43,28 @@ class CitizenMapState {
   final List<FacilityModel> filteredFacilities;
   final LatLng userLocation;
   final FacilityModel? selectedFacility;
+  final FacilityModel? nearestFacility;
   final CitizenMapFilter filter;
   final bool isLoading;
   final String? error;
+  final bool isFullScreenMap;
+  final bool isLiveTrackingActive;
+  final List<LatLng> navigationRoute;
+  final FacilityModel? navigatingFacility;
 
   CitizenMapState({
     this.allFacilities = const [],
     this.filteredFacilities = const [],
     required this.userLocation,
     this.selectedFacility,
+    this.nearestFacility,
     required this.filter,
     this.isLoading = false,
     this.error,
+    this.isFullScreenMap = false,
+    this.isLiveTrackingActive = true,
+    this.navigationRoute = const [],
+    this.navigatingFacility,
   });
 
   CitizenMapState copyWith({
@@ -61,25 +72,38 @@ class CitizenMapState {
     List<FacilityModel>? filteredFacilities,
     LatLng? userLocation,
     FacilityModel? selectedFacility,
+    FacilityModel? nearestFacility,
     CitizenMapFilter? filter,
     bool? isLoading,
     String? error,
+    bool? isFullScreenMap,
+    bool? isLiveTrackingActive,
+    List<LatLng>? navigationRoute,
+    FacilityModel? navigatingFacility,
     bool clearSelected = false,
+    bool clearNavigating = false,
   }) {
     return CitizenMapState(
       allFacilities: allFacilities ?? this.allFacilities,
       filteredFacilities: filteredFacilities ?? this.filteredFacilities,
       userLocation: userLocation ?? this.userLocation,
       selectedFacility: clearSelected ? null : (selectedFacility ?? this.selectedFacility),
+      nearestFacility: nearestFacility ?? this.nearestFacility,
       filter: filter ?? this.filter,
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      isFullScreenMap: isFullScreenMap ?? this.isFullScreenMap,
+      isLiveTrackingActive: isLiveTrackingActive ?? this.isLiveTrackingActive,
+      navigationRoute: clearNavigating ? const [] : (navigationRoute ?? this.navigationRoute),
+      navigatingFacility: clearNavigating ? null : (navigatingFacility ?? this.navigatingFacility),
     );
   }
 }
 
 class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
   final ApiClient _apiClient;
+  Timer? _liveSimulationTimer;
+  int _simulationStep = 0;
 
   CitizenMapNotifier(this._apiClient)
       : super(CitizenMapState(
@@ -87,6 +111,17 @@ class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
           filter: CitizenMapFilter(),
         )) {
     fetchNearbyFacilities();
+    startLiveWalkSimulation();
+  }
+
+  @override
+  void dispose() {
+    _liveSimulationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> fetchFacilities() async {
+    await fetchNearbyFacilities();
   }
 
   Future<void> fetchNearbyFacilities() async {
@@ -101,27 +136,59 @@ class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
         },
       );
       final List data = response.data;
-      final facilities = data.map((json) => FacilityModel.fromJson(json)).toList();
-      state = state.copyWith(
-        allFacilities: facilities,
-        filteredFacilities: _applyFilters(facilities, state.filter),
-        isLoading: false,
-      );
+      final rawFacilities = data.map((json) => FacilityModel.fromJson(json)).toList();
+      _recalculateAndSetState(rawFacilities, state.userLocation);
     } catch (e) {
       // Fallback sample data with diverse categories and markers
       final samples = _generateSampleFacilities();
-      state = state.copyWith(
-        allFacilities: samples,
-        filteredFacilities: _applyFilters(samples, state.filter),
-        isLoading: false,
-      );
+      _recalculateAndSetState(samples, state.userLocation);
     }
   }
 
+  void _recalculateAndSetState(List<FacilityModel> rawList, LatLng userPos) {
+    const distanceCalculator = Distance();
+    final updatedList = rawList.map((f) {
+      final meters = distanceCalculator.as(LengthUnit.Meter, userPos, LatLng(f.latitude, f.longitude));
+      final walkingMin = (meters / 80.0).ceil();
+      return f.copyWith(
+        distanceMeters: meters.roundToDouble(),
+        walkingTimeMinutes: walkingMin,
+      );
+    }).toList();
+
+    // Sort by distance ascending
+    updatedList.sort((a, b) => (a.distanceMeters ?? 0).compareTo(b.distanceMeters ?? 0));
+
+    final filtered = _applyFilters(updatedList, state.filter);
+    final nearest = updatedList.isNotEmpty ? updatedList.first : null;
+
+    List<LatLng> newRoute = state.navigationRoute;
+    if (state.navigatingFacility != null) {
+      newRoute = [
+        userPos,
+        LatLng(state.navigatingFacility!.latitude, state.navigatingFacility!.longitude),
+      ];
+    }
+
+    state = state.copyWith(
+      allFacilities: updatedList,
+      filteredFacilities: filtered,
+      nearestFacility: nearest,
+      navigationRoute: newRoute,
+      isLoading: false,
+    );
+  }
+
+  void updateUserLocation(LatLng newLocation) {
+    _recalculateAndSetState(state.allFacilities, newLocation);
+    state = state.copyWith(userLocation: newLocation);
+  }
+
   void updateFilter(CitizenMapFilter newFilter) {
+    final filtered = _applyFilters(state.allFacilities, newFilter);
     state = state.copyWith(
       filter: newFilter,
-      filteredFacilities: _applyFilters(state.allFacilities, newFilter),
+      filteredFacilities: filtered,
     );
   }
 
@@ -130,6 +197,53 @@ class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
       selectedFacility: facility,
       clearSelected: facility == null,
     );
+  }
+
+  void setFullScreenMap(bool isFullScreen) {
+    state = state.copyWith(isFullScreenMap: isFullScreen);
+  }
+
+  void toggleFullScreenMap() {
+    state = state.copyWith(isFullScreenMap: !state.isFullScreenMap);
+  }
+
+  void startNavigation(FacilityModel facility) {
+    final route = [
+      state.userLocation,
+      LatLng(facility.latitude, facility.longitude),
+    ];
+    state = state.copyWith(
+      navigatingFacility: facility,
+      navigationRoute: route,
+      selectedFacility: facility,
+      isFullScreenMap: true,
+    );
+  }
+
+  void clearNavigation() {
+    state = state.copyWith(clearNavigating: true);
+  }
+
+  void startLiveWalkSimulation() {
+    _liveSimulationTimer?.cancel();
+    // Simulate gentle realistic movement along Marine Drive / MG Road to demonstrate live GPS distance updates
+    final List<LatLng> walkPath = [
+      const LatLng(9.9723, 76.2831), // MG Road Central
+      const LatLng(9.9735, 76.2815),
+      const LatLng(9.9750, 76.2795),
+      const LatLng(9.9770, 76.2770),
+      const LatLng(9.9784, 76.2755), // Marine Drive Walkway Restroom
+      const LatLng(9.9775, 76.2760),
+      const LatLng(9.9755, 76.2785),
+      const LatLng(9.9740, 76.2810),
+    ];
+
+    _liveSimulationTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (!state.isLiveTrackingActive) return;
+      _simulationStep = (_simulationStep + 1) % walkPath.length;
+      final nextPos = walkPath[_simulationStep];
+      updateUserLocation(nextPos);
+    });
   }
 
   List<FacilityModel> _applyFilters(List<FacilityModel> list, CitizenMapFilter filter) {
