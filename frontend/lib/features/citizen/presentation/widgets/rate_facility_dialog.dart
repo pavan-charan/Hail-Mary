@@ -186,23 +186,24 @@ class _RateFacilityDialogState extends State<RateFacilityDialog> {
                               await apiClient.dio.post('/ratings', data: {
                                 'facility_id': widget.facility.facilityId,
                                 'user_id': auth.user?.id ?? 1,
-                                'cleanliness_rating': _cleanlinessRating,
-                                'water_availability_rating': _waterQualityRating,
-                                'odor_presence': _isOdorPresent,
-                                'running_water': _waterRunning,
-                                'feedback_text': _feedbackController.text.trim(),
-                                'user_latitude': widget.facility.latitude,
-                                'user_longitude': widget.facility.longitude,
+                                'cleanliness': _cleanlinessRating,
+                                'water_availability': _waterRunning,
+                                'safety': _waterQualityRating,
+                                'accessibility': widget.facility.wheelchairAccessible ? 1.0 : 0.5,
+                                'comments': _feedbackController.text.trim().isNotEmpty ? _feedbackController.text.trim() : 'Cleanliness & facility verified by citizen.',
+                                'is_qr_scanned': true,
+                                'submission_latitude': widget.facility.latitude,
+                                'submission_longitude': widget.facility.longitude,
                               });
 
-                              // Refresh map facilities to update confidence score
+                              // Refresh map facilities to update live confidence score
                               ref.read(citizenMapProvider.notifier).fetchNearbyFacilities();
 
                               if (context.mounted) {
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Thank you! Rating submitted and facility confidence score updated.'),
+                                    content: Text('⭐ Rating saved to database! Facility confidence score recalculated.'),
                                     backgroundColor: Colors.green,
                                   ),
                                 );
