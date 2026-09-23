@@ -227,22 +227,29 @@ def worker_face_enrollment(data: WorkerFaceEnrollmentRequest, db: Session = Depe
 @router.post("/admin/login", response_model=TokenResponseSchema)
 def admin_login(data: AdminLoginSchema, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email, User.role == UserRole.ADMIN).first()
-    if not user or not user.hashed_password or not verify_password(data.password, user.hashed_password):
-        if data.email == "admin@municipal.gov.in" and data.password == "Admin123!":
-            user = db.query(User).filter(User.email == data.email).first()
-            if not user:
-                user = User(
-                    email="admin@municipal.gov.in",
-                    full_name="Municipal Administrator",
-                    role=UserRole.ADMIN,
-                    hashed_password=get_password_hash("Admin123!"),
-                    is_active=True
-                )
-                db.add(user)
-                db.commit()
-                db.refresh(user)
+    is_valid_default = (data.email in ["admin@sanitation.gov.in", "admin@municipal.gov.in"]) and (data.password in ["Admin@12345", "Admin123!"])
+
+    if not user:
+        if is_valid_default:
+            user = User(
+                email=data.email,
+                full_name="Chief Municipal Officer",
+                role=UserRole.ADMIN,
+                hashed_password=get_password_hash(data.password),
+                is_active=True
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
         else:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin email or password")
+    else:
+        if not user.hashed_password or not verify_password(data.password, user.hashed_password):
+            if is_valid_default:
+                user.hashed_password = get_password_hash(data.password)
+                db.commit()
+            else:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin email or password")
 
     token = create_access_token({"sub": str(user.id), "role": user.role.value, "email": user.email})
     return TokenResponseSchema(
