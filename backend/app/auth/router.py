@@ -18,13 +18,42 @@ from app.core.security import (
 )
 from app.face_verification.service import extract_face_embedding
 
+import random
+import logging
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 MOCK_OTP_STORE = {}
 
+def normalize_phone(phone: str) -> str:
+    cleaned = phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    if not cleaned.startswith("+"):
+        if len(cleaned) == 10:
+            cleaned = "+91" + cleaned
+        else:
+            cleaned = "+" + cleaned
+    return cleaned
+
+def send_twilio_sms(to_phone: str, otp: str):
+    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_PHONE_NUMBER:
+        try:
+            from twilio.rest import Client
+            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+            client.messages.create(
+                body=f"Your Smart Public Sanitation OTP is: {otp}. Valid for 10 minutes.",
+                from_=settings.TWILIO_PHONE_NUMBER,
+                to=to_phone
+            )
+            logger.info(f"Twilio SMS dispatched to {to_phone}")
+        except Exception as e:
+            logger.warning(f"Twilio SMS sending skipped/failed: {e}")
+
 @router.post("/request-otp")
 def request_otp(data: RequestOTPSchema, db: Session = Depends(get_db)):
-    clean_phone = data.phone.strip()
+    clean_phone = normalize_phone(data.phone)
 
     # Rule: Worker must be pre-registered by Admin
     if data.role == UserRole.WORKER:
@@ -33,23 +62,26 @@ def request_otp(data: RequestOTPSchema, db: Session = Depends(get_db)):
         if not user or not worker_profile:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Phone number is not registered as a municipal worker. Please contact Municipal Administration."
+                detail=f"Phone number ({clean_phone}) is not registered as a municipal worker. Please contact Municipal Administration."
             )
 
     otp = "123456"
     MOCK_OTP_STORE[clean_phone] = otp
+    send_twilio_sms(clean_phone, otp)
+
     return {
         "success": True,
         "message": f"OTP sent successfully to {clean_phone}",
+        "phone": clean_phone,
         "debug_otp": otp
     }
 
 @router.post("/verify-otp", response_model=TokenResponseSchema)
 def verify_otp(data: VerifyOTPSchema, db: Session = Depends(get_db)):
-    clean_phone = data.phone.strip()
+    clean_phone = normalize_phone(data.phone)
     expected_otp = MOCK_OTP_STORE.get(clean_phone, "123456")
     if data.otp != expected_otp and data.otp != "123456":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP. Please use 123456 or request a new code.")
 
     # Worker flow validation
     if data.role == UserRole.WORKER:
@@ -112,7 +144,7 @@ def verify_otp(data: VerifyOTPSchema, db: Session = Depends(get_db)):
 
 @router.post("/worker/enroll-face", response_model=TokenResponseSchema)
 def worker_face_enrollment(data: WorkerFaceEnrollmentRequest, db: Session = Depends(get_db)):
-    clean_phone = data.phone.strip()
+    clean_phone = normalize_phone(data.phone)
     user = db.query(User).filter(User.phone == clean_phone, User.role == UserRole.WORKER).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worker user not found")

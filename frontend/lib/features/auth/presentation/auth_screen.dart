@@ -14,11 +14,11 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   UserRole _selectedRole = UserRole.CITIZEN;
-  final TextEditingController _phoneController = TextEditingController(text: '+91 98765 43210');
+  final TextEditingController _phoneController = TextEditingController(text: '+919876543210');
   final TextEditingController _otpController = TextEditingController(text: '123456');
-  final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController(text: 'admin@municipal.gov.in');
-  final TextEditingController _passwordController = TextEditingController(text: 'Admin123!');
+  final TextEditingController _fullNameController = TextEditingController(text: 'Kochi Citizen');
+  final TextEditingController _emailController = TextEditingController(text: 'admin@sanitation.gov.in');
+  final TextEditingController _passwordController = TextEditingController(text: 'Admin@12345');
 
   @override
   Widget build(BuildContext context) {
