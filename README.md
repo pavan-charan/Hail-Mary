@@ -18,7 +18,7 @@ A production-quality civic platform connecting Citizens, Local Body Workers, and
 
 - [x] **Phase 1: Project Foundation** — Clean architecture backend & Flutter role-based frontend.
 - [x] **Phase 2: Authentication Engine** — Citizen Phone OTP, Worker Admin-Registration + OTP + Face Enrollment, Admin Email/Password.
-- [ ] **Phase 3: Facility Asset Management (Admin)**
+- [x] **Phase 3: Facility Asset Management (Admin)** — Asset CRUD, auto Facility ID & QR generation, soft-demolition rules & audit restoration.
 - [ ] **Phase 4: Citizen App & Map Discovery**
 - [ ] **Phase 5: QR System & Demolished Guard**
 - [ ] **Phase 6: Ticket Raising Engine**
