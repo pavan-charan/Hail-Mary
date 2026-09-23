@@ -3,12 +3,16 @@ import json
 import logging
 import hashlib
 from typing import Optional, Tuple
-import cv2
-import numpy as np
-
-logger = logging.getLogger(__name__)
-
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+try:
+    import cv2
+    import numpy as np
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    CV2_AVAILABLE = True
+except Exception:
+    cv2 = None
+    np = None
+    face_cascade = None
+    CV2_AVAILABLE = False
 
 def extract_face_embedding(base64_image_data: str) -> Optional[str]:
     """
