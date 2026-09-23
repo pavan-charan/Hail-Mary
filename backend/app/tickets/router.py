@@ -14,6 +14,8 @@ from app.config import settings
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
 
+from app.notifications.models import Notification, NotificationType
+
 @router.post("", response_model=TicketResponseSchema, status_code=status.HTTP_201_CREATED)
 def raise_ticket(data: TicketCreateSchema, db: Session = Depends(get_db)):
     # Validation Rule: Camera-only uploads. Gallery uploads are prohibited.
@@ -36,14 +38,98 @@ def raise_ticket(data: TicketCreateSchema, db: Session = Depends(get_db)):
     if not facility:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Facility not found in civic registry")
 
-    # Generate unique Ticket ID: TCK-<YYYYMMDD>-<5_HEX>
+    incoming_categories = set([c.value if hasattr(c, "value") else str(c) for c in data.issue_categories])
+
+    # Phase 7 — Duplicate Detection Engine:
+    # Check for active tickets for same facility with overlapping issues within DUPLICATE_TIME_WINDOW_HOURS (12h)
+    time_window = datetime.now(timezone.utc) - timedelta(hours=settings.DUPLICATE_TIME_WINDOW_HOURS)
+    active_statuses = [
+        TicketStatus.TICKET_CREATED,
+        TicketStatus.ASSIGNED,
+        TicketStatus.REACHED,
+        TicketStatus.REPAIRING,
+        TicketStatus.UNDER_VERIFICATION
+    ]
+
+    existing_active_tickets = db.query(Ticket).filter(
+        Ticket.facility_id == facility.id,
+        Ticket.status.in_(active_statuses),
+        Ticket.created_at >= time_window
+    ).order_by(Ticket.created_at.desc()).all()
+
+    duplicate_ticket = None
+    for t in existing_active_tickets:
+        try:
+            t_issues = set(json.loads(t.issue_categories))
+        except Exception:
+            t_issues = {t.issue_categories}
+        if incoming_categories.intersection(t_issues):
+            duplicate_ticket = t
+            break
+
+    if duplicate_ticket:
+        # Auto-merge into existing active ticket
+        duplicate_ticket.report_count += 1
+        
+        # Combine issue categories so no reported problem is lost
+        try:
+            current_cats = set(json.loads(duplicate_ticket.issue_categories))
+        except Exception:
+            current_cats = {duplicate_ticket.issue_categories}
+        combined_cats = list(current_cats.union(incoming_categories))
+        duplicate_ticket.issue_categories = json.dumps(combined_cats)
+
+        # Elevate priority if severe water problems are present
+        if "NO_WATER" in combined_cats or "DRINKING_WATER_UNAVAILABLE" in combined_cats:
+            duplicate_ticket.priority = TicketPriority.HIGH
+
+        # Attach additional live camera proof
+        if data.media_url:
+            media_rec = TicketMedia(
+                ticket_id=duplicate_ticket.id,
+                media_type=MediaType.BEFORE_PHOTO,
+                file_url=data.media_url,
+                captured_latitude=data.reporter_latitude,
+                captured_longitude=data.reporter_longitude,
+                is_live_camera=True
+            )
+            db.add(media_rec)
+
+        # Status history log
+        status_log = TicketStatusHistory(
+            ticket_id=duplicate_ticket.id,
+            from_status=duplicate_ticket.status.value,
+            to_status=duplicate_ticket.status.value,
+            changed_by_user_id=data.reporter_id,
+            notes=f"Auto-merged citizen report #{data.reporter_id}. Total reports: {duplicate_ticket.report_count}"
+        )
+        db.add(status_log)
+
+        # Dispatch notification to the reporting citizen
+        notif = Notification(
+            user_id=data.reporter_id,
+            title=f"Report Merged: {duplicate_ticket.ticket_id}",
+            body=f"Your issue at {facility.name} has been merged with active ticket {duplicate_ticket.ticket_id} (Report count: {duplicate_ticket.report_count}). You will receive live resolution updates.",
+            notification_type=NotificationType.TICKET_CREATED,
+            reference_id=duplicate_ticket.ticket_id
+        )
+        db.add(notif)
+
+        duplicate_ticket.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(duplicate_ticket)
+
+        resp = _format_ticket_response(duplicate_ticket, facility, db)
+        resp.is_merged = True
+        resp.merged_into_ticket_id = duplicate_ticket.ticket_id
+        return resp
+
+    # If no duplicate detected, create a new ticket:
     date_str = datetime.now().strftime("%Y%m%d")
     unique_suffix = uuid.uuid4().hex[:5].upper()
     generated_ticket_id = f"TCK-{date_str}-{unique_suffix}"
 
-    categories_list = [c.value if hasattr(c, "value") else str(c) for c in data.issue_categories]
-    
-    # Priority calculation: High priority if No Water or Drinking Water Unavailable
+    categories_list = list(incoming_categories)
     priority = TicketPriority.HIGH if ("NO_WATER" in categories_list or "DRINKING_WATER_UNAVAILABLE" in categories_list) else TicketPriority.MEDIUM
 
     new_ticket = Ticket(
@@ -84,6 +170,17 @@ def raise_ticket(data: TicketCreateSchema, db: Session = Depends(get_db)):
         notes=f"Ticket created with {len(categories_list)} reported issue(s)"
     )
     db.add(status_log)
+
+    # Dispatch notification to reporter
+    notif = Notification(
+        user_id=data.reporter_id,
+        title=f"Ticket Registered: {new_ticket.ticket_id}",
+        body=f"Your ticket for {facility.name} has been created. A local body worker will be assigned shortly.",
+        notification_type=NotificationType.TICKET_CREATED,
+        reference_id=new_ticket.ticket_id
+    )
+    db.add(notif)
+
     db.commit()
     db.refresh(new_ticket)
 
@@ -154,6 +251,8 @@ def _format_ticket_response(ticket: Ticket, facility: Optional[Facility] = None,
         status=ticket.status,
         priority=ticket.priority,
         report_count=ticket.report_count,
+        is_merged=ticket.is_merged,
+        parent_ticket_id=ticket.parent_ticket_id,
         reporter_latitude=ticket.reporter_latitude,
         reporter_longitude=ticket.reporter_longitude,
         assigned_at=ticket.assigned_at,

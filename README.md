@@ -21,8 +21,8 @@ A production-quality civic platform connecting Citizens, Local Body Workers, and
 - [x] **Phase 3: Facility Asset Management (Admin)** — Asset CRUD, auto Facility ID & QR generation, soft-demolition rules & audit restoration.
 - [x] **Phase 4: Citizen App & Map Discovery** — OpenStreetMap markers (Male/Female/Unisex/Water/Accessible), walking time calculation, multi-attribute filter sheet, facility detail modal.
 - [x] **Phase 5: QR System & Demolished Guard** — Exact facility ID scanning, Report/Rate actions, demolished facility alert & nearest alternative suggestions.
-- [ ] **Phase 6: Ticket Raising Engine**
-- [ ] **Phase 7: Duplicate Detection & Auto-Merge**
+- [x] **Phase 6: Ticket Raising Engine** — Multi-issue selection, strict camera-only live capture enforcement, auto GPS & timestamp tagging, unique Ticket ID generation.
+- [x] **Phase 7: Duplicate Detection & Auto-Merge** — Active ticket duplicate detection within 12h window, issue set union, report count incrementing, priority auto-escalation, and merged citizen status alerts.
 - [ ] **Phase 8: Auto-Assignment Engine**
 - [ ] **Phase 9: Worker Station & Queue**
 - [ ] **Phase 10: 4-Stage Maintenance Workflow**

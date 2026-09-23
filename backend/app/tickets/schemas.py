@@ -36,6 +36,9 @@ class TicketResponseSchema(BaseModel):
     status: TicketStatus
     priority: TicketPriority
     report_count: int
+    is_merged: bool = False
+    parent_ticket_id: Optional[int] = None
+    merged_into_ticket_id: Optional[str] = None
     reporter_latitude: float
     reporter_longitude: float
     assigned_at: Optional[datetime] = None
