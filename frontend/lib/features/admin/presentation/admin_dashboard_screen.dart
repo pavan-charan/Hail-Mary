@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/config/theme.dart';
 import '../../../shared/models/facility_model.dart';
+import '../../../shared/models/user_model.dart';
 import '../../auth/state/auth_notifier.dart';
 import '../state/facility_admin_notifier.dart';
 
@@ -32,6 +34,57 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ],
         ),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Switch Demo Role',
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF7C3AED).withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.swap_horiz_rounded, size: 16, color: Color(0xFF7C3AED)),
+                  const SizedBox(width: 4),
+                  Text('Admin', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF7C3AED))),
+                ],
+              ),
+            ),
+            onSelected: (role) {
+              if (role == 'citizen') {
+                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.CITIZEN);
+                context.go('/citizen');
+              } else if (role == 'worker') {
+                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.WORKER);
+                context.go('/worker');
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'citizen',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_rounded, color: AppTheme.primaryTeal, size: 18),
+                    SizedBox(width: 8),
+                    Text('Switch to Citizen (Priya)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'worker',
+                child: Row(
+                  children: [
+                    Icon(Icons.engineering_rounded, color: Color(0xFF2563EB), size: 18),
+                    SizedBox(width: 8),
+                    Text('Switch to Field Worker (Ramesh)'),
+                  ],
+                ),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_none_rounded),
             onPressed: () {},

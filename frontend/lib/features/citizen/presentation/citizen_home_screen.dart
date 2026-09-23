@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/config/theme.dart';
 import '../../../shared/models/facility_model.dart';
 import '../../../shared/models/ticket_model.dart';
+import '../../../shared/models/user_model.dart';
 import '../../auth/state/auth_notifier.dart';
 import '../state/citizen_map_notifier.dart';
 import 'screens/qr_scanner_screen.dart';
@@ -42,6 +44,57 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
           ],
         ),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Switch Demo Role',
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryTeal.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.primaryTeal.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.swap_horiz_rounded, size: 16, color: AppTheme.primaryTeal),
+                  const SizedBox(width: 4),
+                  Text('Citizen', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.primaryTeal)),
+                ],
+              ),
+            ),
+            onSelected: (role) {
+              if (role == 'worker') {
+                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.WORKER);
+                context.go('/worker');
+              } else if (role == 'admin') {
+                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.ADMIN);
+                context.go('/admin');
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'worker',
+                child: Row(
+                  children: [
+                    Icon(Icons.engineering_rounded, color: Color(0xFF2563EB), size: 18),
+                    SizedBox(width: 8),
+                    Text('Switch to Worker (Ramesh)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'admin',
+                child: Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF7C3AED), size: 18),
+                    SizedBox(width: 8),
+                    Text('Switch to Admin (KMC Officer)'),
+                  ],
+                ),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryTeal),
             tooltip: 'Notifications',

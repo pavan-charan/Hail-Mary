@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/config/theme.dart';
 import '../../../shared/models/ticket_model.dart';
+import '../../../shared/models/user_model.dart';
 import '../../auth/state/auth_notifier.dart';
 import '../../citizen/presentation/screens/ticket_timeline_screen.dart';
 import '../../citizen/presentation/widgets/notifications_sheet.dart';
@@ -93,6 +95,57 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
           ],
         ),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Switch Demo Role',
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF2563EB).withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.swap_horiz_rounded, size: 16, color: Color(0xFF2563EB)),
+                  const SizedBox(width: 4),
+                  Text('Worker', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF2563EB))),
+                ],
+              ),
+            ),
+            onSelected: (role) {
+              if (role == 'citizen') {
+                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.CITIZEN);
+                context.go('/citizen');
+              } else if (role == 'admin') {
+                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.ADMIN);
+                context.go('/admin');
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'citizen',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_rounded, color: AppTheme.primaryTeal, size: 18),
+                    SizedBox(width: 8),
+                    Text('Switch to Citizen (Priya)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'admin',
+                child: Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF7C3AED), size: 18),
+                    SizedBox(width: 8),
+                    Text('Switch to Admin (KMC Officer)'),
+                  ],
+                ),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryTeal),
             tooltip: 'Alerts',
