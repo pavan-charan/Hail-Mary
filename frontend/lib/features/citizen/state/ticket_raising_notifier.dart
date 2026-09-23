@@ -62,25 +62,8 @@ class TicketRaisingNotifier extends StateNotifier<TicketRaisingState> {
       state = state.copyWith(isSubmitting: false, error: msg.toString());
       return null;
     } catch (e) {
-      // Fallback offline mock ticket for responsive demo
-      final mockTicket = TicketModel(
-        id: DateTime.now().millisecondsSinceEpoch,
-        ticketId: 'TCK-${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}-A9F3C',
-        facilityId: 1,
-        facilityCustomId: facilityId,
-        facilityName: 'Facility Asset',
-        reporterId: reporterId,
-        issueCategories: issueCategories,
-        description: description,
-        status: TicketStatus.TICKET_CREATED,
-        reportCount: 1,
-        reporterLatitude: reporterLatitude,
-        reporterLongitude: reporterLongitude,
-        faceVerified: false,
-        createdAt: DateTime.now(),
-      );
-      state = state.copyWith(isSubmitting: false, createdTicket: mockTicket);
-      return mockTicket;
+      state = state.copyWith(isSubmitting: false, error: 'Connection error: Unable to reach municipal server.');
+      return null;
     }
   }
 }

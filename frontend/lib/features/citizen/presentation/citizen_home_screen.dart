@@ -16,6 +16,7 @@ import 'widgets/facility_filter_sheet.dart';
 import 'widgets/raise_ticket_modal.dart';
 import 'widgets/rate_facility_dialog.dart';
 import 'widgets/notifications_sheet.dart';
+import 'widgets/citizen_tickets_sheet.dart';
 
 class CitizenHomeScreen extends ConsumerStatefulWidget {
   const CitizenHomeScreen({super.key});
@@ -141,6 +142,18 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.receipt_long_rounded, color: AppTheme.primaryTeal),
+            tooltip: 'Track Real-Time Tickets',
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const CitizenTicketsSheet(),
               );
             },
           ),

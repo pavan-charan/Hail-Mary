@@ -560,6 +560,9 @@ def _format_ticket_response(ticket: Ticket, facility: Optional[Facility] = None,
         if worker and worker.user:
             worker_name = worker.user.full_name
 
+    lat = ticket.reporter_latitude if (ticket.reporter_latitude is not None and ticket.reporter_latitude != 0.0) else (facility.latitude if facility else 9.9784)
+    lon = ticket.reporter_longitude if (ticket.reporter_longitude is not None and ticket.reporter_longitude != 0.0) else (facility.longitude if facility else 76.2755)
+
     return TicketResponseSchema(
         id=ticket.id,
         ticket_id=ticket.ticket_id,
@@ -576,8 +579,8 @@ def _format_ticket_response(ticket: Ticket, facility: Optional[Facility] = None,
         report_count=ticket.report_count,
         is_merged=ticket.is_merged,
         parent_ticket_id=ticket.parent_ticket_id,
-        reporter_latitude=ticket.reporter_latitude,
-        reporter_longitude=ticket.reporter_longitude,
+        reporter_latitude=lat,
+        reporter_longitude=lon,
         assigned_at=ticket.assigned_at,
         expected_sla_deadline=ticket.expected_sla_deadline,
         face_match_score=ticket.face_match_score,
