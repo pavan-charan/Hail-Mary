@@ -66,6 +66,11 @@ def list_facilities(
     
     for f in facilities:
         resp = FacilityResponseSchema.model_validate(f)
+        if f.last_verified_at:
+            resp.last_verified_formatted = f.last_verified_at.strftime("%b %d, %I:%M %p")
+        else:
+            resp.last_verified_formatted = "Verified Today"
+
         if user_lat is not None and user_lon is not None:
             dist = calculate_haversine_distance(user_lat, user_lon, f.latitude, f.longitude)
             resp.distance_meters = round(dist, 1)

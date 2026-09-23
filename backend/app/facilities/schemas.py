@@ -49,9 +49,10 @@ class FacilityResponseSchema(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
     
-    # Optional computed fields
+    # Computed discovery fields
     distance_meters: Optional[float] = None
     walking_time_minutes: Optional[int] = None
+    last_verified_formatted: Optional[str] = None
 
     class Config:
         from_attributes = True
