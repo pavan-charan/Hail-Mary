@@ -9,6 +9,8 @@ import '../../../../shared/models/facility_model.dart';
 import '../../state/citizen_map_notifier.dart';
 import '../widgets/demolished_facility_dialog.dart';
 import '../widgets/facility_details_bottom_sheet.dart';
+import '../widgets/raise_ticket_modal.dart';
+import '../widgets/rate_facility_dialog.dart';
 
 class QrScannerScreen extends ConsumerStatefulWidget {
   const QrScannerScreen({super.key});
@@ -19,8 +21,36 @@ class QrScannerScreen extends ConsumerStatefulWidget {
 
 class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   final MobileScannerController _scannerController = MobileScannerController();
-  final TextEditingController _manualIdController = TextEditingController(text: 'FAC-WARD12-TLT-A8F1');
+  final TextEditingController _manualIdController = TextEditingController(text: 'FAC-KOC-MD-A8F1');
   bool _isProcessing = false;
+
+  final List<Map<String, String>> _quickTestQrs = [
+    {
+      'id': 'FAC-KOC-MD-A8F1',
+      'label': 'Marine Drive Restroom (Active)',
+      'type': 'TOILET',
+    },
+    {
+      'id': 'FAC-KOC-MG-C349',
+      'label': 'MG Road Water Point (Active)',
+      'type': 'WATER',
+    },
+    {
+      'id': 'FAC-KOC-FK-9B04',
+      'label': 'Fort Kochi Restroom',
+      'type': 'TOILET',
+    },
+    {
+      'id': 'FAC-KOC-VY-D102',
+      'label': 'Vyttila Restroom (Maintenance)',
+      'type': 'TOILET',
+    },
+    {
+      'id': 'FAC-DEMOLISHED-TEST',
+      'label': 'Demolished Asset (Phase 5 Demo)',
+      'type': 'DEMOLISHED',
+    },
+  ];
 
   @override
   void dispose() {
@@ -51,7 +81,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
       if (!mounted) return;
 
       if (!isOperational) {
-        // Demolished Facility Handling (Phase 5 Rule)
+        // Demolished Facility Handling (Phase 5 Rule: Display notice + nearest active alternatives)
         final List altData = data['nearest_alternatives'] ?? [];
         final alternatives = altData.map((json) => FacilityModel.fromJson(json)).toList();
 
@@ -59,10 +89,11 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
           context: context,
           builder: (ctx) => DemolishedFacilityDialog(
             facilityId: cleanId,
-            message: data['message'] ?? 'This facility is no longer operational.',
+            message: data['message'] ?? 'This municipal facility has been demolished or decommissioned.',
             alternatives: alternatives,
             onSelectAlternative: (alt) {
               ref.read(citizenMapProvider.notifier).selectFacility(alt);
+              ref.read(citizenMapProvider.notifier).startNavigation(alt);
               Navigator.pop(context);
             },
           ),
@@ -70,7 +101,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
           if (mounted) setState(() => _isProcessing = false);
         });
       } else {
-        // Operational Facility Handling: Open Facility Details with Report & Rate
+        // Operational Facility Handling: Open Facility Details with working Report, Rate & Navigate
         final facility = FacilityModel.fromJson(data['facility']);
         ref.read(citizenMapProvider.notifier).selectFacility(facility);
 
@@ -82,23 +113,26 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             facility: facility,
             onNavigate: () {
               Navigator.pop(ctx);
+              ref.read(citizenMapProvider.notifier).startNavigation(facility);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Starting GPS route to ${facility.name}...')),
+                SnackBar(content: Text('Starting GPS walking route to ${facility.name}...')),
               );
             },
             onRaiseTicket: () {
               Navigator.pop(ctx);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Opening Ticket Issue Sheet for ${facility.facilityId}...')),
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => RaiseTicketModal(facility: facility),
               );
             },
             onRateFacility: () {
               Navigator.pop(ctx);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Opening Rating Sheet for ${facility.facilityId}...')),
+              showDialog(
+                context: context,
+                builder: (_) => RateFacilityDialog(facility: facility),
               );
             },
           ),
@@ -108,6 +142,72 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
       }
     } catch (e) {
       if (!mounted) return;
+
+      // Fallback lookup from locally loaded facilities
+      final localMatch = mapState.allFacilities.where((f) =>
+          f.facilityId.toLowerCase() == cleanId.toLowerCase() ||
+          f.name.toLowerCase().contains(cleanId.toLowerCase())).firstOrNull;
+
+      if (localMatch != null) {
+        if (localMatch.status == FacilityStatus.DEMOLISHED) {
+          final alternatives = mapState.allFacilities
+              .where((f) => f.status == FacilityStatus.ACTIVE && f.facilityType == localMatch.facilityType)
+              .take(3)
+              .toList();
+
+          showDialog(
+            context: context,
+            builder: (ctx) => DemolishedFacilityDialog(
+              facilityId: cleanId,
+              message: 'This facility has been decommissioned by Kochi Municipal Corporation.',
+              alternatives: alternatives,
+              onSelectAlternative: (alt) {
+                ref.read(citizenMapProvider.notifier).selectFacility(alt);
+                ref.read(citizenMapProvider.notifier).startNavigation(alt);
+                Navigator.pop(context);
+              },
+            ),
+          ).then((_) {
+            if (mounted) setState(() => _isProcessing = false);
+          });
+          return;
+        }
+
+        ref.read(citizenMapProvider.notifier).selectFacility(localMatch);
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (ctx) => FacilityDetailsBottomSheet(
+            facility: localMatch,
+            onNavigate: () {
+              Navigator.pop(ctx);
+              ref.read(citizenMapProvider.notifier).startNavigation(localMatch);
+              Navigator.pop(context);
+            },
+            onRaiseTicket: () {
+              Navigator.pop(ctx);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => RaiseTicketModal(facility: localMatch),
+              );
+            },
+            onRateFacility: () {
+              Navigator.pop(ctx);
+              showDialog(
+                context: context,
+                builder: (_) => RateFacilityDialog(facility: localMatch),
+              );
+            },
+          ),
+        ).then((_) {
+          if (mounted) setState(() => _isProcessing = false);
+        });
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Colors.red[800],
@@ -129,10 +229,12 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.flash_on_rounded),
+            tooltip: 'Toggle Flashlight',
             onPressed: () => _scannerController.toggleTorch(),
           ),
           IconButton(
             icon: const Icon(Icons.flip_camera_ios_rounded),
+            tooltip: 'Switch Camera',
             onPressed: () => _scannerController.switchCamera(),
           ),
         ],
@@ -192,7 +294,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             ),
           ),
 
-          // Bottom Manual Entry / Quick Test Console
+          // Bottom Manual Entry & Quick-Test QR Chips
           Positioned(
             bottom: 0,
             left: 0,
@@ -200,17 +302,55 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.85),
+                color: Colors.black.withOpacity(0.90),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Point camera at the QR code mounted on the facility',
+                    'Point camera at the QR code mounted on the facility, or select a test asset below:',
                     style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
+
+                  // Quick test QR chips for instant testing
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _quickTestQrs.map((item) {
+                        final isDemolished = item['type'] == 'DEMOLISHED';
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ActionChip(
+                            avatar: Icon(
+                              isDemolished
+                                  ? Icons.do_not_disturb_on_rounded
+                                  : item['type'] == 'WATER'
+                                      ? Icons.water_drop_rounded
+                                      : Icons.wc_rounded,
+                              size: 14,
+                              color: isDemolished ? Colors.redAccent : AppTheme.primaryTeal,
+                            ),
+                            label: Text(
+                              item['label']!,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDemolished ? Colors.redAccent : Colors.white,
+                              ),
+                            ),
+                            backgroundColor: Colors.white12,
+                            onPressed: _isProcessing ? null : () => _handleScannedCode(item['id']!),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Manual ID Text Input
                   Row(
                     children: [
                       Expanded(
@@ -218,7 +358,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
                           controller: _manualIdController,
                           style: const TextStyle(color: Colors.white),
                           decoration: InputDecoration(
-                            hintText: 'Or enter Facility ID...',
+                            hintText: 'Enter Facility ID (e.g. FAC-KOC-MD-A8F1)...',
                             hintStyle: const TextStyle(color: Colors.white38),
                             filled: true,
                             fillColor: Colors.white12,
@@ -231,6 +371,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryTeal,
+                          foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                         ),
                         onPressed: _isProcessing

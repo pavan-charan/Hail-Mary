@@ -42,11 +42,18 @@ def scan_facility_qr(
     """
     clean_id = facility_id.strip()
     facility = db.query(Facility).filter(
-        (Facility.facility_id == clean_id) | (Facility.id == int(clean_id) if clean_id.isdigit() else False)
+        (Facility.facility_id == clean_id) | 
+        (Facility.facility_id.ilike(clean_id)) |
+        (Facility.facility_id.ilike(f"%{clean_id}%")) |
+        (Facility.id == int(clean_id) if clean_id.isdigit() else False)
     ).first()
     
     if not facility:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid QR Code: Facility not recognized in civic registry.")
+        # Fallback search by name if ID has keywords
+        facility = db.query(Facility).filter(Facility.name.ilike(f"%{clean_id}%")).first()
+
+    if not facility:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invalid QR Code: Facility '{clean_id}' not recognized in civic registry.")
         
     ref_lat = user_lat if user_lat is not None else facility.latitude
     ref_lon = user_lon if user_lon is not None else facility.longitude

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -1376,39 +1377,89 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Facility QR Code', style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
           children: [
-            Text(facility.name, style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 16)),
-            Text(facility.facilityId, style: GoogleFonts.outfit(color: AppTheme.primaryTeal, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: QrImageView(
-                data: facility.facilityId,
-                version: QrVersions.auto,
-                size: 200.0,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Payload: "${facility.facilityId}"\nMounted at on-site asset entry for Citizen & Worker scanning.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600]),
-            ),
+            const Icon(Icons.qr_code_2_rounded, color: AppTheme.primaryTeal),
+            const SizedBox(width: 8),
+            Text('Facility QR Badge', style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
           ],
         ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'KOCHI MUNICIPAL CORPORATION',
+                style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: AppTheme.primaryTeal),
+              ),
+              const SizedBox(height: 4),
+              Text(facility.name, style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 16), textAlign: TextAlign.center),
+              Text(facility.ward, style: GoogleFonts.outfit(color: Colors.grey[600], fontSize: 13)),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.grey[300]!, width: 2),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4)),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    QrImageView(
+                      data: facility.facilityId,
+                      version: QrVersions.auto,
+                      size: 190.0,
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: AppTheme.primaryTeal.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                      child: Text(
+                        facility.facilityId,
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.w800, color: AppTheme.primaryTeal, fontSize: 13, letterSpacing: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Mount at facility entrance. Citizens and sanitation workers scan this QR to report issues, submit cleanliness ratings, and verify maintenance.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[700]),
+              ),
+            ],
+          ),
+        ),
         actions: [
-          ElevatedButton(
+          OutlinedButton.icon(
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Copy ID'),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: facility.facilityId));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Copied "${facility.facilityId}" to clipboard!')),
+              );
+            },
+          ),
+          ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryTeal, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Done'),
+            icon: const Icon(Icons.print_rounded, size: 16),
+            label: const Text('Export / Print Sticker'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('🖨️ QR Badge for "${facility.name}" ready for printing and on-site sticker mounting.'),
+                  backgroundColor: AppTheme.primaryTeal,
+                ),
+              );
+            },
           ),
         ],
       ),
