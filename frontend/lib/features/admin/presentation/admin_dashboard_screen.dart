@@ -124,12 +124,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             _workers = list.map((w) {
               return WorkerItem(
                 id: w['id'] ?? 0,
-                name: w['name'] ?? 'Municipal Worker',
+                name: w['full_name'] ?? w['name'] ?? 'Municipal Worker',
                 phone: w['phone'] ?? '+919876543210',
                 ward: w['ward'] ?? 'Ward-01',
                 activeWorkload: w['active_workload_count'] ?? 0,
                 totalResolved: w['total_resolved_count'] ?? 0,
-                penalties: w['penalties_count'] ?? 0,
+                penalties: w['penalty_count'] ?? w['penalties_count'] ?? 0,
                 faceEnrolled: w['face_enrolled'] == true,
               );
             }).toList();
@@ -696,6 +696,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     ),
+                    icon: const Icon(Icons.person_add_rounded, size: 16),
+                    label: const Text('Add Worker'),
+                    onPressed: () => _showAddWorkerDialog(context),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0D9488),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
                     icon: _isSlaRunning
                         ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : const Icon(Icons.bolt_rounded, size: 16),
@@ -776,6 +786,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                             fontSize: 11,
                           ),
                         ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                        tooltip: 'Remove Worker',
+                        onPressed: () => _showDeleteWorkerDialog(context, w),
                       ),
                     ],
                   ),
@@ -1271,6 +1286,210 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     } finally {
       if (mounted) setState(() => _isSlaRunning = false);
     }
+  }
+
+  void _showAddWorkerDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController(text: '+91');
+    String ward = 'Ward-01 Marine Drive';
+    final wardOptions = [
+      'Ward-01 Marine Drive',
+      'Ward-02 Fort Kochi',
+      'Ward-05 Ernakulam Central',
+      'Ward-08 Edappally',
+      'Ward-12 Vyttila Terminal',
+      'Ward-15 Kakkanad',
+      'Ward-20 Mattancherry',
+      'Ward-25 Kaloor',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.person_add_rounded, color: AppTheme.primaryTeal),
+              const SizedBox(width: 8),
+              Text('Register Municipal Worker', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 18)),
+            ],
+          ),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pre-register a field sanitation worker into the Kochi Municipal Corporation registry. The worker will authenticate via OTP and complete biometric face enrollment.',
+                    style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Full Name *',
+                      hintText: 'e.g. Manoj Kumar',
+                      prefixIcon: const Icon(Icons.badge_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Mobile Phone Number *',
+                      hintText: '+919876543219',
+                      prefixIcon: const Icon(Icons.phone_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    value: ward,
+                    decoration: InputDecoration(
+                      labelText: 'Assigned Ward Jurisdiction *',
+                      prefixIcon: const Icon(Icons.map_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: wardOptions.map((w) => DropdownMenuItem(value: w, child: Text(w))).toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => ward = val);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryTeal, foregroundColor: Colors.white),
+              icon: const Icon(Icons.check_rounded, size: 16),
+              label: const Text('Register Worker'),
+              onPressed: () async {
+                final name = nameCtrl.text.trim();
+                final phone = phoneCtrl.text.trim();
+                if (name.isEmpty || phone.isEmpty || phone == '+91') {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please fill in both worker name and mobile phone number.')),
+                  );
+                  return;
+                }
+
+                try {
+                  final apiClient = ref.read(apiClientProvider);
+                  await apiClient.dio.post('/workers/register', data: {
+                    'full_name': name,
+                    'phone': phone,
+                    'ward': ward,
+                  });
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  await _loadLiveBackendData();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('🎉 Worker "$name" registered successfully in $ward!'),
+                        backgroundColor: const Color(0xFF16A34A),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to register worker: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteWorkerDialog(BuildContext context, WorkerItem worker) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.red),
+            const SizedBox(width: 8),
+            Text('Remove Worker', style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to remove ${worker.name} (${worker.ward}) from the active field worker registry?',
+              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.withOpacity(0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('• Phone: ${worker.phone}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                  Text('• Active Workload: ${worker.activeWorkload} ticket(s) (will be returned to open queue)', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                  Text('• Total Resolved: ${worker.totalResolved}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: const Text('Confirm Remove'),
+            onPressed: () async {
+              try {
+                final apiClient = ref.read(apiClientProvider);
+                await apiClient.dio.delete('/workers/${worker.id}');
+                if (ctx.mounted) Navigator.pop(ctx);
+                await _loadLiveBackendData();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Worker "${worker.name}" removed from registry.'),
+                      backgroundColor: Colors.red.shade700,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to remove worker: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   void _showAddFacilityDialog(BuildContext context) {

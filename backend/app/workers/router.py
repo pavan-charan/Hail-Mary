@@ -16,11 +16,15 @@ router = APIRouter(prefix="/workers", tags=["Workers"])
 
 @router.post("/register", response_model=WorkerResponseSchema, status_code=status.HTTP_201_CREATED)
 def register_worker(data: WorkerRegisterSchema, db: Session = Depends(get_db)):
+    clean_phone = data.phone.strip()
+    if not clean_phone.startswith("+"):
+        clean_phone = f"+91{clean_phone}" if len(clean_phone) == 10 else f"+{clean_phone}"
+        
     # Check if phone already registered
-    existing_user = db.query(User).filter(User.phone == data.phone).first()
+    existing_user = db.query(User).filter(User.phone == clean_phone).first()
     if not existing_user:
         existing_user = User(
-            phone=data.phone,
+            phone=clean_phone,
             full_name=data.full_name,
             role=UserRole.WORKER,
             is_active=True
@@ -31,6 +35,7 @@ def register_worker(data: WorkerRegisterSchema, db: Session = Depends(get_db)):
     else:
         existing_user.role = UserRole.WORKER
         existing_user.full_name = data.full_name
+        existing_user.is_active = True
         
     existing_worker = db.query(LocalBodyWorker).filter(LocalBodyWorker.user_id == existing_user.id).first()
     if existing_worker:
@@ -59,6 +64,35 @@ def register_worker(data: WorkerRegisterSchema, db: Session = Depends(get_db)):
         total_resolved_count=worker.total_resolved_count,
         penalty_count=worker.penalty_count
     )
+
+@router.delete("/{worker_id}")
+def delete_worker(worker_id: int, db: Session = Depends(get_db)):
+    from app.tickets.models import Ticket
+
+    worker = db.query(LocalBodyWorker).filter(LocalBodyWorker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worker not found")
+    
+    # Unassign any active tickets assigned to this worker so they return to open pool
+    active_tickets = db.query(Ticket).filter(
+        Ticket.assigned_worker_id == worker.id,
+        Ticket.status.in_([TicketStatus.ASSIGNED, TicketStatus.REACHED, TicketStatus.REPAIRING])
+    ).all()
+    for t in active_tickets:
+        t.assigned_worker_id = None
+        t.status = TicketStatus.TICKET_CREATED
+    
+    # Delete associated penalties if any
+    db.query(WorkerPenalty).filter(WorkerPenalty.worker_id == worker.id).delete()
+
+    user = worker.user
+    db.delete(worker)
+    if user:
+        user.role = UserRole.CITIZEN
+    db.commit()
+    
+    return {"success": True, "message": "Worker profile successfully removed."}
+
 
 @router.post("/enroll-face")
 def enroll_face(data: WorkerEnrollFaceSchema, db: Session = Depends(get_db)):

@@ -95,3 +95,32 @@ def test_admin_email_password_login(client):
     me_resp = client.get("/api/v1/auth/me", headers=headers)
     assert me_resp.status_code == status.HTTP_200_OK
     assert me_resp.json()["email"] == "admin@municipal.gov.in"
+
+def test_worker_add_and_delete(client):
+    worker_phone = "+919876500099"
+    worker_name = "Kishore Kumar"
+    
+    # 1. Add worker
+    reg = client.post("/api/v1/workers/register", json={
+        "phone": worker_phone,
+        "full_name": worker_name,
+        "ward": "Ward-01"
+    })
+    assert reg.status_code == status.HTTP_201_CREATED
+    worker_id = reg.json()["id"]
+
+    # 2. List workers - should contain the new worker
+    listing = client.get("/api/v1/workers")
+    assert listing.status_code == status.HTTP_200_OK
+    assert any(w["id"] == worker_id for w in listing.json())
+
+    # 3. Delete worker
+    del_resp = client.delete(f"/api/v1/workers/{worker_id}")
+    assert del_resp.status_code == status.HTTP_200_OK
+    assert del_resp.json()["success"] is True
+
+    # 4. List workers - should no longer contain the deleted worker
+    listing_after = client.get("/api/v1/workers")
+    assert listing_after.status_code == status.HTTP_200_OK
+    assert not any(w["id"] == worker_id for w in listing_after.json())
+
