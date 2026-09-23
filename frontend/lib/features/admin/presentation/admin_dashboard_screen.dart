@@ -170,218 +170,281 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const Icon(Icons.admin_panel_settings_rounded, color: AppTheme.primaryTeal),
-            const SizedBox(width: 8),
-            Text('Kochi Municipal Corporation • Admin Portal', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 18)),
-          ],
-        ),
-        actions: [
-          PopupMenuButton<String>(
-            tooltip: 'Switch Demo Role',
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF7C3AED).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFF7C3AED).withOpacity(0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.swap_horiz_rounded, size: 16, color: Color(0xFF7C3AED)),
-                  const SizedBox(width: 4),
-                  Text('Admin', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF7C3AED))),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 800;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Row(
+              children: [
+                const Icon(Icons.admin_panel_settings_rounded, color: AppTheme.primaryTeal),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isMobile ? 'KMC Admin Portal' : 'Kochi Municipal Corporation • Admin Portal',
+                    style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: isMobile ? 16 : 18),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              PopupMenuButton<String>(
+                tooltip: 'Switch Demo Role',
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C3AED).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF7C3AED).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.swap_horiz_rounded, size: 16, color: Color(0xFF7C3AED)),
+                      const SizedBox(width: 4),
+                      Text('Admin', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF7C3AED))),
+                    ],
+                  ),
+                ),
+                onSelected: (role) {
+                  if (role == 'citizen') {
+                    ref.read(authProvider.notifier).switchRoleForDemo(UserRole.CITIZEN);
+                    context.go('/citizen');
+                  } else if (role == 'worker') {
+                    ref.read(authProvider.notifier).switchRoleForDemo(UserRole.WORKER);
+                    context.go('/worker');
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'citizen',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_rounded, color: AppTheme.primaryTeal, size: 18),
+                        SizedBox(width: 8),
+                        Text('Switch to Citizen (Priya)'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'worker',
+                    child: Row(
+                      children: [
+                        Icon(Icons.engineering_rounded, color: Color(0xFF2563EB), size: 18),
+                        SizedBox(width: 8),
+                        Text('Switch to Field Worker (Ramesh)'),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            ),
-            onSelected: (role) {
-              if (role == 'citizen') {
-                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.CITIZEN);
-                context.go('/citizen');
-              } else if (role == 'worker') {
-                ref.read(authProvider.notifier).switchRoleForDemo(UserRole.WORKER);
-                context.go('/worker');
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'citizen',
-                child: Row(
-                  children: [
-                    Icon(Icons.person_rounded, color: AppTheme.primaryTeal, size: 18),
-                    SizedBox(width: 8),
-                    Text('Switch to Citizen (Priya)'),
-                  ],
-                ),
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded),
+                tooltip: 'Refresh',
+                onPressed: () {
+                  ref.read(facilityAdminProvider.notifier).fetchFacilities();
+                  _loadLiveBackendData();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Dashboard refreshed with latest municipal data.')),
+                  );
+                },
               ),
-              const PopupMenuItem(
-                value: 'worker',
-                child: Row(
-                  children: [
-                    Icon(Icons.engineering_rounded, color: Color(0xFF2563EB), size: 18),
-                    SizedBox(width: 8),
-                    Text('Switch to Field Worker (Ramesh)'),
-                  ],
-                ),
+              IconButton(
+                icon: const Icon(Icons.notifications_active_outlined),
+                tooltip: 'Alerts',
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const NotificationsSheet(),
+                  );
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                tooltip: 'Sign Out',
+                onPressed: () => ref.read(authProvider.notifier).logout(),
               ),
             ],
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh All Data',
-            onPressed: () {
-              ref.read(facilityAdminProvider.notifier).fetchFacilities();
-              _loadLiveBackendData();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Dashboard refreshed with latest municipal data.')),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications_active_outlined),
-            tooltip: 'System Notifications & Audit Log',
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (_) => const NotificationsSheet(),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-            tooltip: 'Sign Out',
-            onPressed: () => ref.read(authProvider.notifier).logout(),
-          ),
-        ],
-      ),
-      body: Row(
-        children: [
-          // Side Navigation Rail for Desktop / Web
-          NavigationRail(
-            selectedIndex: _selectedNavIndex,
-            onDestinationSelected: (int index) {
-              setState(() {
-                _selectedNavIndex = index;
-              });
-            },
-            labelType: NavigationRailLabelType.all,
-            destinations: [
-              const NavigationRailDestination(
-                icon: Icon(Icons.dashboard_outlined),
-                selectedIcon: Icon(Icons.dashboard_rounded, color: AppTheme.primaryTeal),
-                label: Text('Overview'),
-              ),
-              const NavigationRailDestination(
-                icon: Icon(Icons.location_city_outlined),
-                selectedIcon: Icon(Icons.location_city_rounded, color: AppTheme.primaryTeal),
-                label: Text('Facilities'),
-              ),
-              NavigationRailDestination(
-                icon: Badge(
-                  label: Text('${_verificationQueue.length}'),
-                  child: const Icon(Icons.verified_outlined),
+          bottomNavigationBar: isMobile
+              ? NavigationBar(
+                  selectedIndex: _selectedNavIndex,
+                  onDestinationSelected: (idx) => setState(() => _selectedNavIndex = idx),
+                  indicatorColor: AppTheme.primaryTeal.withOpacity(0.15),
+                  destinations: [
+                    const NavigationDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard_rounded, color: AppTheme.primaryTeal),
+                      label: 'Overview',
+                    ),
+                    const NavigationDestination(
+                      icon: Icon(Icons.location_city_outlined),
+                      selectedIcon: Icon(Icons.location_city_rounded, color: AppTheme.primaryTeal),
+                      label: 'Facilities',
+                    ),
+                    NavigationDestination(
+                      icon: Badge(
+                        label: Text('${_verificationQueue.length}'),
+                        child: const Icon(Icons.verified_outlined),
+                      ),
+                      selectedIcon: Badge(
+                        label: Text('${_verificationQueue.length}'),
+                        child: const Icon(Icons.verified_rounded, color: AppTheme.primaryTeal),
+                      ),
+                      label: 'Verification',
+                    ),
+                    const NavigationDestination(
+                      icon: Icon(Icons.engineering_outlined),
+                      selectedIcon: Icon(Icons.engineering_rounded, color: AppTheme.primaryTeal),
+                      label: 'Workers/SLA',
+                    ),
+                  ],
+                )
+              : null,
+          body: isMobile
+              ? _buildSelectedTab(isMobile)
+              : Row(
+                  children: [
+                    // Side Navigation Rail for Desktop
+                    NavigationRail(
+                      selectedIndex: _selectedNavIndex,
+                      onDestinationSelected: (int index) {
+                        setState(() {
+                          _selectedNavIndex = index;
+                        });
+                      },
+                      labelType: NavigationRailLabelType.all,
+                      destinations: [
+                        const NavigationRailDestination(
+                          icon: Icon(Icons.dashboard_outlined),
+                          selectedIcon: Icon(Icons.dashboard_rounded, color: AppTheme.primaryTeal),
+                          label: Text('Overview'),
+                        ),
+                        const NavigationRailDestination(
+                          icon: Icon(Icons.location_city_outlined),
+                          selectedIcon: Icon(Icons.location_city_rounded, color: AppTheme.primaryTeal),
+                          label: Text('Facilities'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Badge(
+                            label: Text('${_verificationQueue.length}'),
+                            child: const Icon(Icons.verified_outlined),
+                          ),
+                          selectedIcon: Badge(
+                            label: Text('${_verificationQueue.length}'),
+                            child: const Icon(Icons.verified_rounded, color: AppTheme.primaryTeal),
+                          ),
+                          label: const Text('Verification'),
+                        ),
+                        const NavigationRailDestination(
+                          icon: Icon(Icons.engineering_outlined),
+                          selectedIcon: Icon(Icons.engineering_rounded, color: AppTheme.primaryTeal),
+                          label: Text('Workers & SLA'),
+                        ),
+                      ],
+                    ),
+                    const VerticalDivider(thickness: 1, width: 1),
+                    // Main Body Content
+                    Expanded(
+                      child: _buildSelectedTab(isMobile),
+                    ),
+                  ],
                 ),
-                selectedIcon: Badge(
-                  label: Text('${_verificationQueue.length}'),
-                  child: const Icon(Icons.verified_rounded, color: AppTheme.primaryTeal),
-                ),
-                label: const Text('Verification'),
-              ),
-              const NavigationRailDestination(
-                icon: Icon(Icons.engineering_outlined),
-                selectedIcon: Icon(Icons.engineering_rounded, color: AppTheme.primaryTeal),
-                label: Text('Workers & SLA'),
-              ),
-            ],
-          ),
-          const VerticalDivider(thickness: 1, width: 1),
-          // Main Body Content
-          Expanded(
-            child: _buildSelectedTab(),
-          )
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildSelectedTab() {
+  Widget _buildSelectedTab(bool isMobile) {
     switch (_selectedNavIndex) {
       case 0:
-        return _buildOverviewTab();
+        return _buildOverviewTab(isMobile);
       case 1:
-        return _buildFacilitiesManagementTab();
+        return _buildFacilitiesManagementTab(isMobile);
       case 2:
-        return _buildVerificationTab();
+        return _buildVerificationTab(isMobile);
       case 3:
-        return _buildWorkersAndSlaTab();
+        return _buildWorkersAndSlaTab(isMobile);
       default:
-        return _buildOverviewTab();
+        return _buildOverviewTab(isMobile);
     }
   }
 
   // TAB 0: OVERVIEW
-  Widget _buildOverviewTab() {
+  Widget _buildOverviewTab(bool isMobile) {
     final facilityState = ref.watch(facilityAdminProvider);
     final totalFacilities = facilityState.facilities.length;
     final activeCount = facilityState.facilities.where((f) => f.status == FacilityStatus.ACTIVE).length;
     final demolishedCount = facilityState.facilities.where((f) => f.status == FacilityStatus.DEMOLISHED).length;
 
+    final kpiCards = [
+      _buildKpiCardItem(
+        'Total Facilities',
+        '$totalFacilities',
+        '$activeCount Active, $demolishedCount Demolished',
+        Icons.place_rounded,
+        AppTheme.primaryTeal,
+        onTap: () => setState(() => _selectedNavIndex = 1),
+      ),
+      _buildKpiCardItem(
+        'Verification Queue',
+        '${_verificationQueue.length}',
+        'Awaiting Municipal Approval',
+        Icons.pending_actions_rounded,
+        Colors.orange,
+        onTap: () => setState(() => _selectedNavIndex = 2),
+      ),
+      _buildKpiCardItem(
+        'Avg SLA Turnaround',
+        '3.4 hrs',
+        '-45 mins vs target',
+        Icons.timer_outlined,
+        Colors.blue,
+        onTap: () => setState(() => _selectedNavIndex = 3),
+      ),
+      _buildKpiCardItem(
+        'SLA Compliance',
+        '96.5%',
+        '1 Penalty Recorded',
+        Icons.shield_outlined,
+        Colors.green,
+        onTap: () => setState(() => _selectedNavIndex = 3),
+      ),
+    ];
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              _buildKpiCard(
-                'Total Facilities',
-                '$totalFacilities',
-                '$activeCount Active, $demolishedCount Demolished',
-                Icons.place_rounded,
-                AppTheme.primaryTeal,
-                onTap: () => setState(() => _selectedNavIndex = 1),
-              ),
-              _buildKpiCard(
-                'Verification Queue',
-                '${_verificationQueue.length}',
-                'Awaiting Municipal Approval',
-                Icons.pending_actions_rounded,
-                Colors.orange,
-                onTap: () => setState(() => _selectedNavIndex = 2),
-              ),
-              _buildKpiCard(
-                'Avg SLA Turnaround',
-                '3.4 hrs',
-                '-45 mins vs target',
-                Icons.timer_outlined,
-                Colors.blue,
-                onTap: () => setState(() => _selectedNavIndex = 3),
-              ),
-              _buildKpiCard(
-                'SLA Compliance',
-                '96.5%',
-                '1 Penalty Recorded',
-                Icons.shield_outlined,
-                Colors.green,
-                onTap: () => setState(() => _selectedNavIndex = 3),
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
+          // Responsive KPI Cards Layout
+          if (isMobile)
+            GridView.count(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.25,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: kpiCards,
+            )
+          else
+            Row(
+              children: kpiCards.map((c) => Expanded(child: c)).toList(),
+            ),
+          const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Live Maintenance Verification Queue', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w700)),
+              Text('Live Verification Queue', style: GoogleFonts.outfit(fontSize: isMobile ? 17 : 20, fontWeight: FontWeight.w700)),
               TextButton.icon(
                 icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                label: const Text('View All Queue'),
+                label: const Text('View All'),
                 onPressed: () => setState(() => _selectedNavIndex = 2),
               ),
             ],
@@ -390,14 +453,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           if (_verificationQueue.isEmpty)
             _buildEmptyQueueCard()
           else
-            ..._verificationQueue.take(2).map((item) => _buildVerificationCard(item)),
+            ..._verificationQueue.take(2).map((item) => _buildVerificationCard(item, isMobile)),
         ],
       ),
     );
   }
 
   // TAB 1: FACILITIES MANAGEMENT
-  Widget _buildFacilitiesManagementTab() {
+  Widget _buildFacilitiesManagementTab(bool isMobile) {
     final facilityState = ref.watch(facilityAdminProvider);
 
     final filtered = facilityState.facilities.where((f) {
@@ -418,58 +481,112 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }).toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Municipal Facility Asset Registry', style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800)),
-                  Text('Create, edit, generate QR codes, soft-demolish, and audit public sanitation & water assets.', style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[600])),
-                ],
-              ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryTeal,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          if (isMobile)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Municipal Facility Asset Registry', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text('Audit, generate QR badges, and manage civic assets.', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600])),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryTeal,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add Facility'),
+                    onPressed: () => _showAddFacilityDialog(context),
+                  ),
                 ),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add Facility'),
-                onPressed: () => _showAddFacilityDialog(context),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Municipal Facility Asset Registry', style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800)),
+                    Text('Create, edit, generate QR codes, soft-demolish, and audit public sanitation & water assets.', style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[600])),
+                  ],
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryTeal,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Add Facility'),
+                  onPressed: () => _showAddFacilityDialog(context),
+                ),
+              ],
+            ),
+          const SizedBox(height: 16),
 
-          // Search and Filters Bar
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
+          // Search and Filters Bar (Responsive)
+          if (isMobile)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
                   decoration: InputDecoration(
-                    hintText: 'Search by facility name, ID, ward, or address...',
-                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Search facility, ID, ward, address...',
+                    prefixIcon: const Icon(Icons.search, size: 20),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    isDense: true,
                   ),
                   onChanged: (val) => setState(() => _facilitySearch = val),
                 ),
-              ),
-              const SizedBox(width: 16),
-              _buildFilterChoiceChip('ALL', 'All (${facilityState.facilities.length})'),
-              _buildFilterChoiceChip('TOILET', 'Restrooms'),
-              _buildFilterChoiceChip('WATER', 'Drinking Water'),
-              _buildFilterChoiceChip('ACTIVE', 'Active'),
-              _buildFilterChoiceChip('DEMOLISHED', 'Demolished'),
-            ],
-          ),
-          const SizedBox(height: 20),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChoiceChip('ALL', 'All (${facilityState.facilities.length})'),
+                      _buildFilterChoiceChip('TOILET', 'Restrooms'),
+                      _buildFilterChoiceChip('WATER', 'Drinking Water'),
+                      _buildFilterChoiceChip('ACTIVE', 'Active'),
+                      _buildFilterChoiceChip('DEMOLISHED', 'Demolished'),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search by facility name, ID, ward, or address...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    onChanged: (val) => setState(() => _facilitySearch = val),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                _buildFilterChoiceChip('ALL', 'All (${facilityState.facilities.length})'),
+                _buildFilterChoiceChip('TOILET', 'Restrooms'),
+                _buildFilterChoiceChip('WATER', 'Drinking Water'),
+                _buildFilterChoiceChip('ACTIVE', 'Active'),
+                _buildFilterChoiceChip('DEMOLISHED', 'Demolished'),
+              ],
+            ),
+          const SizedBox(height: 16),
 
           // Facilities List Cards
           if (filtered.isEmpty)
@@ -486,64 +603,79 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               ),
             )
           else
-            ...filtered.map((facility) => _buildFacilityInventoryCard(facility)),
+            ...filtered.map((facility) => _buildFacilityInventoryCard(facility, isMobile)),
         ],
       ),
     );
   }
 
   // TAB 2: VERIFICATION QUEUE
-  Widget _buildVerificationTab() {
+  Widget _buildVerificationTab(bool isMobile) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Work Order Verification Queue', style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800)),
-                  Text('Review Before & After photographic evidence, OpenCV Face Match scores, and GPS completion proximity.', style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[600])),
+                  Text('Work Order Verification Queue', style: GoogleFonts.outfit(fontSize: isMobile ? 18 : 22, fontWeight: FontWeight.w800)),
+                  Text('Review Before/After evidence, Face Match scores, and GPS check-in proximity.', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600])),
                 ],
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(color: Colors.orange.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
-                child: Text('${_verificationQueue.length} Pending Approval', style: const TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold, fontSize: 13)),
+                child: Text('${_verificationQueue.length} Pending Approval', style: const TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold, fontSize: 12)),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           if (_verificationQueue.isEmpty)
             _buildEmptyQueueCard()
           else
-            ..._verificationQueue.map((item) => _buildVerificationCard(item)),
+            ..._verificationQueue.map((item) => _buildVerificationCard(item, isMobile)),
         ],
       ),
     );
   }
 
   // TAB 3: WORKERS & SLA ESCALATION
-  Widget _buildWorkersAndSlaTab() {
+  Widget _buildWorkersAndSlaTab(bool isMobile) {
+    final workerKpis = [
+      _buildKpiCardItem('Registered Workers', '${_workers.length}', '100% Enrolled', Icons.engineering_rounded, AppTheme.primaryTeal),
+      _buildKpiCardItem('On-Track Tickets', '16', 'Within 24h SLA', Icons.check_circle_outline_rounded, Colors.green),
+      _buildKpiCardItem('At-Risk (>20h)', '1', 'SMS Reminder Sent', Icons.alarm_rounded, Colors.orange),
+      _buildKpiCardItem('Penalties Applied', '1', '-10 Pts Recorded', Icons.gavel_rounded, Colors.red),
+    ];
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Local Body Workers & SLA Monitoring', style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800)),
-                  Text('Active ward assignments, real-time workload balancing, SLA compliance metrics, and penalty records.', style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[600])),
+                  Text('Field Workers & SLA Monitoring', style: GoogleFonts.outfit(fontSize: isMobile ? 18 : 22, fontWeight: FontWeight.w800)),
+                  Text('Active ward assignments, SLA compliance metrics, and penalty records.', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600])),
                 ],
               ),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   OutlinedButton.icon(
                     icon: _isLoadingWorkers
@@ -558,34 +690,40 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                             if (mounted) setState(() => _isLoadingWorkers = false);
                           },
                   ),
-                  const SizedBox(width: 12),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryTeal,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     ),
                     icon: _isSlaRunning
                         ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.bolt_rounded),
-                    label: Text(_isSlaRunning ? 'Scanning SLA Matrix...' : 'Run SLA Escalation Scan'),
+                        : const Icon(Icons.bolt_rounded, size: 16),
+                    label: Text(_isSlaRunning ? 'Scanning...' : 'Run SLA Scan'),
                     onPressed: _isSlaRunning ? null : _runSlaEscalationScan,
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              _buildKpiCard('Registered Workers', '${_workers.length}', '100% Biometric Enrolled', Icons.engineering_rounded, AppTheme.primaryTeal),
-              _buildKpiCard('On-Track Tickets', '16', 'Within 24h SLA', Icons.check_circle_outline_rounded, Colors.green),
-              _buildKpiCard('At-Risk (>20h)', '1', 'SMS Reminder Dispatched', Icons.alarm_rounded, Colors.orange),
-              _buildKpiCard('Penalties Applied', '1', '-10 Points Recorded', Icons.gavel_rounded, Colors.red),
-            ],
-          ),
-          const SizedBox(height: 32),
-          Text('Municipal Field Workers Registry', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 20),
+          // Responsive Workers KPI
+          if (isMobile)
+            GridView.count(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.25,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: workerKpis,
+            )
+          else
+            Row(
+              children: workerKpis.map((c) => Expanded(child: c)).toList(),
+            ),
+          const SizedBox(height: 28),
+          Text('Municipal Field Workers Registry', style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -597,44 +735,45 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               itemBuilder: (context, index) {
                 final w = _workers[index];
                 return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: 6),
                   leading: CircleAvatar(
                     backgroundColor: AppTheme.primaryTeal.withOpacity(0.12),
                     child: const Icon(Icons.person, color: AppTheme.primaryTeal),
                   ),
-                  title: Text(w.name, style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 15)),
-                  subtitle: Text('${w.ward} • ${w.phone} • ${w.totalResolved} Resolved Tasks'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  title: Text(w.name, style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 14)),
+                  subtitle: Text('${w.ward} • ${w.phone} • ${w.totalResolved} Done', style: const TextStyle(fontSize: 12)),
+                  trailing: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: w.activeWorkload > 1 ? Colors.orange.withOpacity(0.15) : Colors.green.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          '${w.activeWorkload} Active Tasks',
+                          '${w.activeWorkload} Active',
                           style: TextStyle(
                             color: w.activeWorkload > 1 ? Colors.orange[900] : Colors.green[900],
                             fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: w.faceEnrolled ? Colors.blue.withOpacity(0.12) : Colors.grey.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          w.faceEnrolled ? '✓ Face Enrolled' : 'Pending Face',
+                          w.faceEnrolled ? '✓ Enrolled' : 'Pending',
                           style: TextStyle(
                             color: w.faceEnrolled ? Colors.blue[900] : Colors.grey[700],
                             fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                       ),
@@ -652,7 +791,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Widget _buildEmptyQueueCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: const Color(0xFFF0FDF4),
         borderRadius: BorderRadius.circular(16),
@@ -660,11 +799,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 48),
-          const SizedBox(height: 12),
-          Text('All Work Orders Verified!', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF15803D))),
+          const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 40),
+          const SizedBox(height: 10),
+          Text('All Work Orders Verified!', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF15803D))),
           const SizedBox(height: 4),
-          Text('No pending ticket completions in the queue. Municipal sanitation status is optimal.', style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF166534))),
+          Text('No pending ticket completions in the queue. Sanitation status is optimal.', textAlign: TextAlign.center, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF166534))),
         ],
       ),
     );
@@ -673,9 +812,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Widget _buildFilterChoiceChip(String key, String label) {
     final isSelected = _facilityFilter == key;
     return Padding(
-      padding: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsets.only(right: 6),
       child: ChoiceChip(
-        label: Text(label),
+        label: Text(label, style: const TextStyle(fontSize: 12)),
         selected: isSelected,
         selectedColor: AppTheme.primaryTeal,
         labelStyle: GoogleFonts.outfit(
@@ -689,12 +828,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildFacilityInventoryCard(FacilityModel facility) {
+  Widget _buildFacilityInventoryCard(FacilityModel facility, bool isMobile) {
     final isDemolished = facility.status == FacilityStatus.DEMOLISHED;
     final statusColor = _getStatusColor(facility.status);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -704,109 +843,116 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       ),
       color: isDemolished ? const Color(0xFFFEF2F2) : Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
+        padding: EdgeInsets.all(isMobile ? 14 : 20),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDemolished ? Colors.red.withOpacity(0.1) : AppTheme.primaryTeal.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                facility.facilityType == FacilityType.TOILET ? Icons.wc_rounded : Icons.water_drop_rounded,
-                color: isDemolished ? Colors.red : AppTheme.primaryTeal,
-                size: 32,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(facility.facilityId, style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: AppTheme.primaryTeal, fontSize: 13)),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          facility.status.name.replaceAll('_', ' '),
-                          style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('•  ${facility.ward}', style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(facility.name, style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.w700, color: isDemolished ? Colors.grey[700] : AppTheme.surfaceDark)),
-                  const SizedBox(height: 4),
-                  Text(facility.address, style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[600])),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 6,
-                    children: [
-                      _buildMiniBadge(Icons.access_time_rounded, '${facility.openingTime} - ${facility.closingTime}'),
-                      _buildMiniBadge(Icons.people_outline, 'Gender: ${facility.genderAccess.name}'),
-                      _buildMiniBadge(
-                        Icons.accessible_rounded,
-                        facility.wheelchairAccessible ? 'Wheelchair: Yes' : 'Wheelchair: No',
-                        color: facility.wheelchairAccessible ? Colors.green : Colors.grey,
-                      ),
-                      _buildMiniBadge(
-                        Icons.water_drop_outlined,
-                        facility.waterAvailability ? 'Water: Available' : 'Water: Dry',
-                        color: facility.waterAvailability ? Colors.blue : Colors.red,
-                      ),
-                      _buildMiniBadge(Icons.verified_outlined, 'Confidence: ${facility.confidenceScore.toInt()}%'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.qr_code_2_rounded, size: 16),
-                      label: const Text('View QR'),
-                      onPressed: () => _showQrModal(context, facility),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 20),
-                      tooltip: 'Edit Facility',
-                      onPressed: () => _showEditFacilityDialog(context, facility),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.history_rounded, size: 20),
-                      tooltip: 'Audit History',
-                      onPressed: () => _showAuditHistoryDialog(context, facility),
-                    ),
-                  ],
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDemolished ? Colors.red.withOpacity(0.1) : AppTheme.primaryTeal.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    facility.facilityType == FacilityType.TOILET ? Icons.wc_rounded : Icons.water_drop_rounded,
+                    color: isDemolished ? Colors.red : AppTheme.primaryTeal,
+                    size: isMobile ? 24 : 30,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(facility.facilityId, style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: AppTheme.primaryTeal, fontSize: 13)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              facility.status.name.replaceAll('_', ' '),
+                              style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor),
+                            ),
+                          ),
+                          Text('•  ${facility.ward}', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(facility.name, style: GoogleFonts.outfit(fontSize: isMobile ? 15 : 17, fontWeight: FontWeight.w700, color: isDemolished ? Colors.grey[700] : AppTheme.surfaceDark)),
+                      const SizedBox(height: 4),
+                      Text(facility.address, style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600])),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              children: [
+                _buildMiniBadge(Icons.access_time_rounded, '${facility.openingTime} - ${facility.closingTime}'),
+                _buildMiniBadge(Icons.people_outline, 'Gender: ${facility.genderAccess.name}'),
+                _buildMiniBadge(
+                  Icons.accessible_rounded,
+                  facility.wheelchairAccessible ? 'Wheelchair: Yes' : 'Wheelchair: No',
+                  color: facility.wheelchairAccessible ? Colors.green : Colors.grey,
+                ),
+                _buildMiniBadge(
+                  Icons.water_drop_outlined,
+                  facility.waterAvailability ? 'Water: Available' : 'Water: Dry',
+                  color: facility.waterAvailability ? Colors.blue : Colors.red,
+                ),
+                _buildMiniBadge(Icons.verified_outlined, 'Confidence: ${facility.confidenceScore.toInt()}%'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            // Actions wrapped
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.qr_code_2_rounded, size: 16),
+                  label: const Text('View QR', style: TextStyle(fontSize: 12)),
+                  onPressed: () => _showQrModal(context, facility),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  tooltip: 'Edit Facility',
+                  onPressed: () => _showEditFacilityDialog(context, facility),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.history_rounded, size: 20),
+                  tooltip: 'Audit History',
+                  onPressed: () => _showAuditHistoryDialog(context, facility),
+                ),
                 if (isDemolished)
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                     icon: const Icon(Icons.restore_from_trash_rounded, size: 16),
-                    label: const Text('Restore Facility'),
+                    label: const Text('Restore Facility', style: TextStyle(fontSize: 12)),
                     onPressed: () => _showRestoreDialog(context, facility),
                   )
                 else
                   TextButton.icon(
                     style: TextButton.styleFrom(foregroundColor: Colors.red[700]),
                     icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                    label: const Text('Demolish Asset'),
+                    label: const Text('Demolish Asset', style: TextStyle(fontSize: 12)),
                     onPressed: () => _showDemolishDialog(context, facility),
                   ),
               ],
@@ -823,7 +969,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       children: [
         Icon(icon, size: 14, color: color ?? Colors.grey[700]),
         const SizedBox(width: 4),
-        Text(text, style: GoogleFonts.outfit(fontSize: 12, color: color ?? Colors.grey[800], fontWeight: FontWeight.w500)),
+        Text(text, style: GoogleFonts.outfit(fontSize: 11, color: color ?? Colors.grey[800], fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -841,90 +987,112 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
   }
 
-  Widget _buildKpiCard(String title, String value, String subtitle, IconData icon, Color color, {VoidCallback? onTap}) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8),
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(title, style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[600], fontWeight: FontWeight.w600)),
-                    Icon(icon, color: color, size: 24),
-                  ],
+  Widget _buildKpiCardItem(String title, String value, String subtitle, IconData icon, Color color, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(icon, color: color, size: 20),
+                ],
+              ),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800, color: AppTheme.surfaceDark),
                 ),
-                const SizedBox(height: 8),
-                Text(value, style: GoogleFonts.outfit(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.surfaceDark)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: GoogleFonts.outfit(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
-              ],
-            ),
+              ),
+              Text(
+                subtitle,
+                style: GoogleFonts.outfit(fontSize: 10, color: color, fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildVerificationCard(VerificationItem item) {
+  Widget _buildVerificationCard(VerificationItem item, bool isMobile) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isMobile ? 14 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(color: AppTheme.primaryTeal.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
                       child: Text(item.ticketId, style: GoogleFonts.outfit(fontWeight: FontWeight.w800, color: AppTheme.primaryTeal, fontSize: 13)),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Text(DateFormat('hh:mm a').format(item.completedAt), style: TextStyle(fontSize: 12, color: Colors.grey[500])),
                   ],
                 ),
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: Colors.green.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                      child: Text('OpenCV Match: ${item.faceScore}%', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                      child: Text('OpenCV: ${item.faceScore}%', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 11)),
                     ),
-                    const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: Colors.blue.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                      child: Text(item.gpsStatus, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
+                      child: Text(item.gpsStatus, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 11)),
                     ),
                   ],
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            Text(item.facilityName, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700)),
+            Text(item.facilityName, style: GoogleFonts.outfit(fontSize: isMobile ? 15 : 16, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             Text('Submitted by: ${item.workerName}', style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.w500)),
             const SizedBox(height: 6),
             Text(item.issueDescription, style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[600], fontStyle: FontStyle.italic)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
               children: [
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
@@ -932,17 +1100,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     side: BorderSide(color: Colors.red.shade300),
                   ),
                   icon: const Icon(Icons.close_rounded, size: 16),
-                  label: const Text('Reject & Request Rework'),
+                  label: const Text('Reject & Request Rework', style: TextStyle(fontSize: 12)),
                   onPressed: () => _showRejectWorkOrderDialog(context, item),
                 ),
-                const SizedBox(width: 12),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF16A34A),
                     foregroundColor: Colors.white,
                   ),
                   icon: const Icon(Icons.check_circle_rounded, size: 16),
-                  label: const Text('Approve & Resolve (+5% Boost)'),
+                  label: const Text('Approve & Resolve (+5%)', style: TextStyle(fontSize: 12)),
                   onPressed: () => _approveWorkOrder(item),
                 ),
               ],
