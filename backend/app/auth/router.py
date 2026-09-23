@@ -37,19 +37,22 @@ def normalize_phone(phone: str) -> str:
             cleaned = "+" + cleaned
     return cleaned
 
-def send_twilio_sms(to_phone: str, otp: str):
+def send_twilio_sms(to_phone: str, otp: str) -> dict:
     if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_PHONE_NUMBER:
         try:
             from twilio.rest import Client
             client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-            client.messages.create(
-                body=f"Your Smart Public Sanitation OTP is: {otp}. Valid for 10 minutes.",
+            msg = client.messages.create(
+                body=f"[Smart Civic Sanitation] Your verification OTP is: {otp}. Valid for 10 minutes. Do not share with anyone.",
                 from_=settings.TWILIO_PHONE_NUMBER,
                 to=to_phone
             )
-            logger.info(f"Twilio SMS dispatched to {to_phone}")
+            logger.info(f"Twilio SMS dispatched to {to_phone} (SID: {msg.sid})")
+            return {"sent": True, "sid": msg.sid}
         except Exception as e:
-            logger.warning(f"Twilio SMS sending skipped/failed: {e}")
+            logger.warning(f"Twilio SMS sending error: {e}")
+            return {"sent": False, "error": str(e)}
+    return {"sent": False, "error": "Twilio not configured"}
 
 @router.post("/request-otp")
 def request_otp(data: RequestOTPSchema, db: Session = Depends(get_db)):
@@ -65,15 +68,18 @@ def request_otp(data: RequestOTPSchema, db: Session = Depends(get_db)):
                 detail=f"Phone number ({clean_phone}) is not registered as a municipal worker. Please contact Municipal Administration."
             )
 
-    otp = "123456"
+    # Generate 6-digit dynamic OTP
+    otp = f"{random.randint(100000, 999999)}"
     MOCK_OTP_STORE[clean_phone] = otp
-    send_twilio_sms(clean_phone, otp)
+    sms_res = send_twilio_sms(clean_phone, otp)
 
     return {
         "success": True,
         "message": f"OTP sent successfully to {clean_phone}",
         "phone": clean_phone,
-        "debug_otp": otp
+        "debug_otp": otp,
+        "sms_dispatched": sms_res.get("sent", False),
+        "sms_error": sms_res.get("error")
     }
 
 @router.post("/verify-otp", response_model=TokenResponseSchema)
