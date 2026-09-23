@@ -145,25 +145,70 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
                   const SizedBox(height: 20),
                   // Quick Role Previews for Evaluator
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 4,
-                    children: [
-                      Text('Quick Preview: ', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600])),
-                      TextButton(
-                        onPressed: () => ref.read(authProvider.notifier).switchRoleForDemo(UserRole.CITIZEN),
-                        child: const Text('Citizen'),
-                      ),
-                      TextButton(
-                        onPressed: () => ref.read(authProvider.notifier).switchRoleForDemo(UserRole.WORKER),
-                        child: const Text('Worker'),
-                      ),
-                      TextButton(
-                        onPressed: () => ref.read(authProvider.notifier).switchRoleForDemo(UserRole.ADMIN),
-                        child: const Text('Admin'),
-                      ),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.primaryTeal.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Text(
+                            '⚡ Instant 1-Tap Role Demo Switcher:',
+                            style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.primaryTeal),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryTeal,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  textStyle: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                                icon: const Icon(Icons.person, size: 14),
+                                label: const Text('Citizen'),
+                                onPressed: () => ref.read(authProvider.notifier).switchRoleForDemo(UserRole.CITIZEN),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2563EB),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  textStyle: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                                icon: const Icon(Icons.engineering, size: 14),
+                                label: const Text('Worker'),
+                                onPressed: () => ref.read(authProvider.notifier).switchRoleForDemo(UserRole.WORKER),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF7C3AED),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  textStyle: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                                icon: const Icon(Icons.admin_panel_settings, size: 14),
+                                label: const Text('Admin'),
+                                onPressed: () => ref.read(authProvider.notifier).switchRoleForDemo(UserRole.ADMIN),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -177,41 +222,47 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget _buildRoleTab(UserRole role, String label, IconData icon) {
     final isSelected = _selectedRole == role;
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedRole = role;
-          });
-          ref.read(authProvider.notifier).resetOtpState();
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    )
-                  ]
-                : null,
-          ),
-          child: Column(
-            children: [
-              Icon(icon, size: 20, color: isSelected ? AppTheme.primaryTeal : Colors.grey[500]),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? AppTheme.primaryTeal : Colors.grey[600],
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          mouseCursor: SystemMouseCursors.click,
+          onTap: () {
+            setState(() {
+              _selectedRole = role;
+            });
+            ref.read(authProvider.notifier).resetOtpState();
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      )
+                    ]
+                  : null,
+            ),
+            child: Column(
+              children: [
+                Icon(icon, size: 22, color: isSelected ? AppTheme.primaryTeal : Colors.grey[500]),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                    color: isSelected ? AppTheme.primaryTeal : Colors.grey[600],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
