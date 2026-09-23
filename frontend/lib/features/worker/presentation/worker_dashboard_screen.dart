@@ -379,8 +379,8 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
                       'status': 'COMPLETED',
                       'face_image_base64': base64Image,
                       'worker_notes': 'Maintenance repairs finalized with live camera facial verification.',
-                      'current_latitude': ticket.reporterLatitude ?? 9.9784,
-                      'current_longitude': ticket.reporterLongitude ?? 76.2755,
+                      'current_latitude': ticket.reporterLatitude,
+                      'current_longitude': ticket.reporterLongitude,
                     });
 
                     final faceScore = response.data?['face_match_score'] ?? 96.5;

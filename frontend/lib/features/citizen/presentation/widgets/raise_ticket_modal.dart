@@ -19,7 +19,6 @@ class RaiseTicketModal extends ConsumerStatefulWidget {
 class _RaiseTicketModalState extends ConsumerState<RaiseTicketModal> {
   final Set<String> _selectedIssues = {};
   final TextEditingController _descriptionController = TextEditingController();
-  bool _photoCaptured = true; // Live camera photo captured
 
   final List<Map<String, dynamic>> _issueCategories = [
     {'code': 'NO_WATER', 'label': 'No Water', 'icon': Icons.water_drop_outlined, 'color': Colors.blue},
