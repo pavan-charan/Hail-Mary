@@ -97,3 +97,54 @@ def scan_facility_qr(
         "facility": resp,
         "available_actions": ["REPORT_ISSUE", "RATE_FACILITY"]
     }
+
+from pydantic import BaseModel
+import base64
+import numpy as np
+import cv2
+
+class QRDecodeRequest(BaseModel):
+    image_base64: str
+
+@router.post("/decode-image")
+def decode_qr_image(payload: QRDecodeRequest):
+    """
+    Decodes a QR code directly from camera image frame using OpenCV QRCodeDetector.
+    """
+    img_data = payload.image_base64
+    if "," in img_data:
+        img_data = img_data.split(",", 1)[1]
+
+    try:
+        raw_bytes = base64.b64decode(img_data)
+        nparr = np.frombuffer(raw_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise HTTPException(status_code=400, detail="Invalid image data")
+
+        detector = cv2.QRCodeDetector()
+        val, pts, _ = detector.detectAndDecode(img)
+
+        if not val or len(val.strip()) == 0:
+            # Try multiple / enhanced detection
+            retval, decoded_info, points, straight_qrcode = detector.detectAndDecodeMulti(img)
+            if retval and decoded_info and len(decoded_info) > 0 and len(decoded_info[0].strip()) > 0:
+                val = decoded_info[0]
+
+        if not val or len(val.strip()) == 0:
+            return {
+                "success": False,
+                "message": "No QR code detected in this photo. Hold the QR code steady in front of the camera and click Capture & Scan again."
+            }
+
+        return {
+            "success": True,
+            "payload": val.strip(),
+            "facility_id": val.strip()
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"QR decoding error: {str(e)}"
+        }
+

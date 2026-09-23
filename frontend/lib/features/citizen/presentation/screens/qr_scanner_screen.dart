@@ -1,6 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:camera/camera.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/config/theme.dart';
@@ -19,10 +20,15 @@ class QrScannerScreen extends ConsumerStatefulWidget {
   ConsumerState<QrScannerScreen> createState() => _QrScannerScreenState();
 }
 
-class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
-  final MobileScannerController _scannerController = MobileScannerController();
-  final TextEditingController _manualIdController = TextEditingController(text: 'FAC-KOC-MD-A8F1');
+class _QrScannerScreenState extends ConsumerState<QrScannerScreen> with SingleTickerProviderStateMixin {
+  CameraController? _cameraController;
+  List<CameraDescription> _cameras = [];
+  bool _isCameraInitializing = true;
+  String? _cameraError;
   bool _isProcessing = false;
+  late AnimationController _laserController;
+
+  final TextEditingController _manualIdController = TextEditingController(text: 'FAC-KOC-MD-A8F1');
 
   final List<Map<String, String>> _quickTestQrs = [
     {
@@ -53,10 +59,115 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _laserController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _initializeCamera();
+  }
+
+  @override
   void dispose() {
-    _scannerController.dispose();
+    _laserController.dispose();
+    _cameraController?.dispose();
     _manualIdController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeCamera() async {
+    setState(() {
+      _isCameraInitializing = true;
+      _cameraError = null;
+    });
+
+    try {
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        setState(() {
+          _isCameraInitializing = false;
+          _cameraError = 'No camera found on this device.';
+        });
+        return;
+      }
+
+      // Default to back camera for QR scanning, or first available
+      CameraDescription selectedCamera = _cameras.firstWhere(
+        (cam) => cam.lensDirection == CameraLensDirection.back,
+        orElse: () => _cameras.first,
+      );
+
+      _cameraController = CameraController(
+        selectedCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await _cameraController!.initialize();
+
+      if (mounted) {
+        setState(() {
+          _isCameraInitializing = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCameraInitializing = false;
+          _cameraError = 'Camera permission required: Click Allow in your browser.';
+        });
+      }
+    }
+  }
+
+  Future<void> _captureAndScanQr() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Camera not ready. Please use the quick test facility chips below.')),
+      );
+      return;
+    }
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final XFile photo = await _cameraController!.takePicture();
+      final bytes = await photo.readAsBytes();
+      final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+      final apiClient = ref.read(apiClientProvider);
+      final decodeRes = await apiClient.dio.post('/qr/decode-image', data: {
+        'image_base64': base64String,
+      });
+
+      final decodeData = decodeRes.data;
+      if (decodeData['success'] == true && decodeData['facility_id'] != null) {
+        final decodedId = decodeData['facility_id'].toString();
+        await _handleScannedCode(decodedId);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.orange[900],
+              content: Text(decodeData['message'] ?? 'No QR detected in photo. Hold the code closer and retry, or tap a test chip below.'),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red[800],
+            content: Text('Error scanning camera photo: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   Future<void> _handleScannedCode(String rawPayload) async {
@@ -228,92 +339,146 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
         title: Text('Scan Facility QR Code', style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.flash_on_rounded),
-            tooltip: 'Toggle Flashlight',
-            onPressed: () => _scannerController.toggleTorch(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.flip_camera_ios_rounded),
-            tooltip: 'Switch Camera',
-            onPressed: () => _scannerController.switchCamera(),
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Retry Camera',
+            onPressed: _initializeCamera,
           ),
         ],
       ),
       body: Stack(
         children: [
-          // Live Camera Scanner View
-          MobileScanner(
-            controller: _scannerController,
-            errorBuilder: (context, error, child) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.videocam_off_rounded, color: Colors.white54, size: 48),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Webcam Access Prompt in Browser',
-                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Please click "Allow" in Chrome for camera access, or use the quick test facility chips below.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
+          // Live Webcam Stream View
+          if (_isCameraInitializing)
+            const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppTheme.primaryTeal),
+                  SizedBox(height: 16),
+                  Text('Initializing camera stream...', style: TextStyle(color: Colors.white70)),
+                ],
+              ),
+            )
+          else if (_cameraError != null || _cameraController == null || !_cameraController!.value.isInitialized)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.videocam_rounded, color: AppTheme.primaryTeal, size: 64),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Camera Live Preview Ready',
+                      style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _cameraError ?? 'Allow camera permissions in Chrome, or use the quick test facility chips below.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryTeal, foregroundColor: Colors.white),
+                      icon: const Icon(Icons.camera_alt_rounded),
+                      label: const Text('Request Camera Access'),
+                      onPressed: _initializeCamera,
+                    ),
+                  ],
                 ),
-              );
-            },
-            onDetect: (capture) {
-              final List<Barcode> barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                final val = barcode.rawValue;
-                if (val != null && val.isNotEmpty) {
-                  _handleScannedCode(val);
-                  break;
-                }
-              }
-            },
-          ),
+              ),
+            )
+          else
+            SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _cameraController!.value.previewSize?.height ?? 400,
+                  height: _cameraController!.value.previewSize?.width ?? 600,
+                  child: CameraPreview(_cameraController!),
+                ),
+              ),
+            ),
 
-          // High-Tech Viewfinder Target Box Overlay
+          // High-Tech Viewfinder Target Box with Animated Scanning Laser
           Center(
             child: Container(
-              width: 260,
-              height: 260,
+              width: 270,
+              height: 270,
               decoration: BoxDecoration(
-                border: Border.all(color: AppTheme.accentCyan, width: 3),
+                border: Border.all(color: AppTheme.accentCyan, width: 2.5),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Stack(
                 children: [
+                  // Corner brackets
                   Positioned(
                     top: 10,
                     left: 10,
-                    child: Container(width: 20, height: 20, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Colors.white, width: 3), left: BorderSide(color: Colors.white, width: 3)))),
+                    child: Container(width: 20, height: 20, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Colors.white, width: 3.5), left: BorderSide(color: Colors.white, width: 3.5)))),
                   ),
                   Positioned(
                     top: 10,
                     right: 10,
-                    child: Container(width: 20, height: 20, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Colors.white, width: 3), right: BorderSide(color: Colors.white, width: 3)))),
+                    child: Container(width: 20, height: 20, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Colors.white, width: 3.5), right: BorderSide(color: Colors.white, width: 3.5)))),
                   ),
                   Positioned(
                     bottom: 10,
                     left: 10,
-                    child: Container(width: 20, height: 20, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white, width: 3), left: BorderSide(color: Colors.white, width: 3)))),
+                    child: Container(width: 20, height: 20, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white, width: 3.5), left: BorderSide(color: Colors.white, width: 3.5)))),
                   ),
                   Positioned(
                     bottom: 10,
                     right: 10,
-                    child: Container(width: 20, height: 20, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white, width: 3), right: BorderSide(color: Colors.white, width: 3)))),
+                    child: Container(width: 20, height: 20, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white, width: 3.5), right: BorderSide(color: Colors.white, width: 3.5)))),
+                  ),
+                  // Animated Laser Beam
+                  AnimatedBuilder(
+                    animation: _laserController,
+                    builder: (context, child) {
+                      return Positioned(
+                        top: 20 + (_laserController.value * 230),
+                        left: 15,
+                        right: 15,
+                        child: Container(
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentCyan,
+                            boxShadow: [
+                              BoxShadow(color: AppTheme.accentCyan.withOpacity(0.8), blurRadius: 10, spreadRadius: 2),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   if (_isProcessing)
                     const Center(child: CircularProgressIndicator(color: AppTheme.accentCyan)),
                 ],
+              ),
+            ),
+          ),
+
+          // Capture & Scan Snapshot Button (Above Bottom Panel)
+          Positioned(
+            bottom: 230,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryTeal,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  elevation: 6,
+                ),
+                icon: _isProcessing
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                label: Text(_isProcessing ? 'Analyzing Frame...' : 'Capture & Scan QR Code', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 14)),
+                onPressed: _isProcessing ? null : _captureAndScanQr,
               ),
             ),
           ),
@@ -326,15 +491,16 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.90),
+                color: Colors.black.withOpacity(0.92),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Point camera at the QR code mounted on the facility, or select a test asset below:',
+                    'Point webcam at QR code or tap any quick-test asset below:',
                     style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
