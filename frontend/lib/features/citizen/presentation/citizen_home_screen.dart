@@ -6,12 +6,16 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/config/theme.dart';
 import '../../../shared/models/facility_model.dart';
+import '../../../shared/models/ticket_model.dart';
 import '../../auth/state/auth_notifier.dart';
 import '../state/citizen_map_notifier.dart';
 import 'screens/qr_scanner_screen.dart';
+import 'screens/ticket_timeline_screen.dart';
 import 'widgets/facility_details_bottom_sheet.dart';
 import 'widgets/facility_filter_sheet.dart';
 import 'widgets/raise_ticket_modal.dart';
+import 'widgets/rate_facility_dialog.dart';
+import 'widgets/notifications_sheet.dart';
 
 class CitizenHomeScreen extends ConsumerStatefulWidget {
   const CitizenHomeScreen({super.key});
@@ -38,6 +42,18 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryTeal),
+            tooltip: 'Notifications',
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const NotificationsSheet(),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner_rounded, color: AppTheme.primaryTeal),
             tooltip: 'Scan Facility QR',
@@ -203,8 +219,9 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                   );
                 },
                 onRateFacility: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Opening 4-Factor Rating Sheet for ${mapState.selectedFacility!.facilityId}...')),
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => RateFacilityDialog(facility: mapState.selectedFacility!),
                   );
                 },
               ),

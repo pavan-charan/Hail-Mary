@@ -25,6 +25,8 @@ ENV/
 .env.local
 *.db
 *.sqlite3
+*firebase*.json
+backend/*adminsdk*.json
 
 # Flutter / Dart
 frontend/.dart_tool/

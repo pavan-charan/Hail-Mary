@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/config/theme.dart';
 import '../../../shared/models/ticket_model.dart';
 import '../../auth/state/auth_notifier.dart';
+import '../../citizen/presentation/screens/ticket_timeline_screen.dart';
+import '../../citizen/presentation/widgets/notifications_sheet.dart';
 
 class WorkerDashboardScreen extends ConsumerStatefulWidget {
   const WorkerDashboardScreen({super.key});
@@ -25,7 +27,7 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
       facilityName: 'Marine Drive Walkway Restroom',
       reporterId: 1,
       assignedWorkerId: 42,
-      assignedWorkerName: 'Worker Ramesh',
+      assignedWorkerName: 'Worker Suresh Nair',
       issueCategories: ['NO_WATER', 'DIRTY'],
       description: 'Water tap dry near Rainbow Bridge and floor needs sanitation',
       status: TicketStatus.ASSIGNED,
@@ -43,7 +45,7 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
       facilityName: 'MG Road Metro Station Sanitation Point',
       reporterId: 3,
       assignedWorkerId: 42,
-      assignedWorkerName: 'Worker Ramesh',
+      assignedWorkerName: 'Worker Suresh Nair',
       issueCategories: ['DRINKING_WATER_UNAVAILABLE'],
       description: 'Chilled drinking water point button jammed',
       status: TicketStatus.REPAIRING,
@@ -65,13 +67,17 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
+    final assignedList = _workerTickets.where((t) => t.status == TicketStatus.ASSIGNED).toList();
+    final inProgressList = _workerTickets.where((t) => t.status == TicketStatus.REPAIRING).toList();
+    final completedList = _workerTickets.where((t) => t.status == TicketStatus.COMPLETED || t.status == TicketStatus.RESOLVED).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Worker Task Station', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 18)),
-            Text('Ward-12 • ${authState.user?.fullName ?? "Ramesh Kumar"}', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600])),
+            Text('Ward-01 Marine Drive • ${authState.user?.fullName ?? "Suresh Nair"}', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[600])),
           ],
         ),
         bottom: TabBar(
@@ -79,14 +85,26 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
           labelColor: AppTheme.primaryTeal,
           unselectedLabelColor: Colors.grey[600],
           indicatorColor: AppTheme.primaryTeal,
-          tabs: const [
-            Tab(text: 'Assigned (1)'),
-            Tab(text: 'In Progress (1)'),
-            Tab(text: 'Completed (0)'),
-            Tab(text: 'Penalties (0)'),
+          tabs: [
+            Tab(text: 'Assigned (${assignedList.length})'),
+            Tab(text: 'In Progress (${inProgressList.length})'),
+            Tab(text: 'Completed (${completedList.length})'),
+            const Tab(text: 'Penalties (0)'),
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryTeal),
+            tooltip: 'Alerts',
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const NotificationsSheet(),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
             tooltip: 'Sign Out',
@@ -97,9 +115,9 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildTicketList([_workerTickets[0]]),
-          _buildTicketList([_workerTickets[1]]),
-          _buildEmptyState('No completed tickets for this shift yet'),
+          assignedList.isEmpty ? _buildEmptyState('No newly assigned tickets') : _buildTicketList(assignedList),
+          inProgressList.isEmpty ? _buildEmptyState('No work currently in progress') : _buildTicketList(inProgressList),
+          completedList.isEmpty ? _buildEmptyState('No completed tickets for this shift yet') : _buildTicketList(completedList),
           _buildEmptyState('Zero penalties! Perfect SLA compliance record'),
         ],
       ),
@@ -131,7 +149,7 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
                 const SizedBox(height: 8),
                 Text(t.facilityName ?? 'Facility Asset', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Text('Reports: ${t.reportCount} merged reports', style: GoogleFonts.outfit(fontSize: 12, color: Colors.amber[800], fontWeight: FontWeight.w600)),
+                Text('Reports: ${t.reportCount} merged citizen reports', style: GoogleFonts.outfit(fontSize: 12, color: Colors.amber[800], fontWeight: FontWeight.w600)),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 6,
@@ -145,19 +163,30 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
                 // 4-Stage Action Buttons
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.navigation_outlined, size: 18),
-                        label: const Text('Navigate'),
-                        onPressed: () {},
-                      ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.timeline_rounded, size: 18),
+                      label: const Text('Timeline'),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => TicketTimelineScreen(ticket: t)),
+                        );
+                      },
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton.icon(
-                        icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                        label: Text(t.status == TicketStatus.ASSIGNED ? 'Mark Reached' : 'Complete & Face Proof'),
-                        onPressed: () => _showStageActionModal(context, t),
+                        icon: Icon(t.status == TicketStatus.ASSIGNED ? Icons.location_on_rounded : Icons.camera_enhance_rounded, size: 18),
+                        label: Text(
+                          t.status == TicketStatus.ASSIGNED
+                              ? 'Check-in (30m)'
+                              : t.status == TicketStatus.REPAIRING
+                                  ? 'Complete & Verify'
+                                  : 'Verified Done',
+                        ),
+                        onPressed: t.status == TicketStatus.COMPLETED || t.status == TicketStatus.RESOLVED
+                            ? null
+                            : () => _showStageActionModal(context, t),
                       ),
                     ),
                   ],
@@ -176,6 +205,9 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
     if (status == TicketStatus.REPAIRING) {
       bg = Colors.amber.withOpacity(0.15);
       fg = Colors.amber[900]!;
+    } else if (status == TicketStatus.COMPLETED || status == TicketStatus.RESOLVED) {
+      bg = Colors.green.withOpacity(0.15);
+      fg = Colors.green;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -201,42 +233,125 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
   }
 
   void _showStageActionModal(BuildContext context, TicketModel ticket) {
+    final isAssigned = ticket.status == TicketStatus.ASSIGNED;
+
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('4-Stage Maintenance Workflow', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w700)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(isAssigned ? 'Step 2: Check-In (30m Radius)' : 'Step 4: Biometric Completion', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800)),
+                IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(ctx)),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (isAssigned) ...[
+              const ListTile(
+                leading: Icon(Icons.gps_fixed_rounded, color: Colors.green, size: 28),
+                title: Text('GPS Geo-Fence Check'),
+                subtitle: Text('Distance to Facility: 14 meters (Within 30m maximum limit - PASSED)'),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('Confirm Arrival & Begin Repairs'),
+                onPressed: () {
+                  setState(() {
+                    final idx = _workerTickets.indexWhere((item) => item.id == ticket.id);
+                    if (idx != -1) {
+                      _workerTickets[idx] = TicketModel(
+                        id: ticket.id,
+                        ticketId: ticket.ticketId,
+                        facilityId: ticket.facilityId,
+                        facilityCustomId: ticket.facilityCustomId,
+                        facilityName: ticket.facilityName,
+                        reporterId: ticket.reporterId,
+                        assignedWorkerId: ticket.assignedWorkerId,
+                        assignedWorkerName: ticket.assignedWorkerName,
+                        issueCategories: ticket.issueCategories,
+                        description: ticket.description,
+                        status: TicketStatus.REPAIRING,
+                        reportCount: ticket.reportCount,
+                        reporterLatitude: ticket.reporterLatitude,
+                        reporterLongitude: ticket.reporterLongitude,
+                        faceVerified: false,
+                        createdAt: ticket.createdAt,
+                      );
+                    }
+                  });
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Status updated to REPAIRING. Clock is running for SLA.'), backgroundColor: Colors.amber),
+                  );
+                },
+              ),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.purple.withOpacity(0.2)),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.face_retouching_natural_rounded, color: Colors.purple, size: 36),
+                    const SizedBox(height: 8),
+                    Text('MediaPipe Biometric Face Match', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 14)),
+                    const SizedBox(height: 4),
+                    Text('Live Selfie Similarity Score: 98.4% (Threshold: 75% - PASSED)', style: GoogleFonts.outfit(fontSize: 12, color: Colors.green[800], fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.verified_rounded),
+                label: const Text('Submit Live After-Photo & Complete Work'),
+                onPressed: () {
+                  setState(() {
+                    final idx = _workerTickets.indexWhere((item) => item.id == ticket.id);
+                    if (idx != -1) {
+                      _workerTickets[idx] = TicketModel(
+                        id: ticket.id,
+                        ticketId: ticket.ticketId,
+                        facilityId: ticket.facilityId,
+                        facilityCustomId: ticket.facilityCustomId,
+                        facilityName: ticket.facilityName,
+                        reporterId: ticket.reporterId,
+                        assignedWorkerId: ticket.assignedWorkerId,
+                        assignedWorkerName: ticket.assignedWorkerName,
+                        issueCategories: ticket.issueCategories,
+                        description: ticket.description,
+                        status: TicketStatus.COMPLETED,
+                        reportCount: ticket.reportCount,
+                        reporterLatitude: ticket.reporterLatitude,
+                        reporterLongitude: ticket.reporterLongitude,
+                        faceVerified: true,
+                        createdAt: ticket.createdAt,
+                      );
+                    }
+                  });
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Work order marked COMPLETED and submitted to Municipal Admin for verification!'), backgroundColor: Colors.green),
+                  );
+                },
+              ),
+            ],
             const SizedBox(height: 8),
-            Text('Current Step: ${ticket.status.name}', style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey[600])),
-            const SizedBox(height: 16),
-            const ListTile(
-              leading: Icon(Icons.gps_fixed, color: AppTheme.primaryTeal),
-              title: Text('GPS Verification (30m Geo-Fence)'),
-              subtitle: Text('Current Distance: 12 meters (Passed)'),
-            ),
-            const ListTile(
-              leading: Icon(Icons.face_retouching_natural, color: AppTheme.primaryTeal),
-              title: Text('MediaPipe Face Verification'),
-              subtitle: Text('Worker selfie proof matches profile (98.4%)'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Stage updated successfully!')),
-                );
-              },
-              child: const Text('Confirm & Proceed Stage'),
-            )
           ],
         ),
       ),
     );
   }
 }
+
