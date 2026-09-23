@@ -55,7 +55,7 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Smart Civic Sanitation', style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 18, color: AppTheme.surfaceDark)),
+            Text('Smart Civic Sanitation', style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 17, color: AppTheme.surfaceDark)),
             Row(
               children: [
                 Container(
@@ -126,11 +126,21 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
           ),
           IconButton(
             icon: const Icon(Icons.gps_fixed_rounded, color: AppTheme.primaryTeal),
-            tooltip: 'Sync Device GPS Location',
+            tooltip: 'Sync GPS',
             onPressed: () {
               ref.read(citizenMapProvider.notifier).requestDeviceLocation();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Acquiring real-time GPS location from your device...')),
+                const SnackBar(content: Text('Acquiring real-time GPS location...')),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: AppTheme.primaryTeal),
+            tooltip: 'Scan QR',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const QrScannerScreen()),
               );
             },
           ),
@@ -143,16 +153,6 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
                 builder: (_) => const NotificationsSheet(),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner_rounded, color: AppTheme.primaryTeal),
-            tooltip: 'Scan Facility QR',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const QrScannerScreen()),
               );
             },
           ),
@@ -369,7 +369,7 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
 
           const SizedBox(height: 16),
 
-          // Action Buttons: Navigate (opens map route), Details, Rate (30m), Report Issue
+          // Action Buttons: Navigate (opens street route), Details, Rate (30m), Report Issue
           Row(
             children: [
               Expanded(
@@ -382,7 +382,7 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 3,
                   ),
-                  icon: const Icon(Icons.navigation_rounded, size: 18),
+                  icon: const Icon(Icons.directions_walk_rounded, size: 18),
                   label: Text('Walk Route', style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 13)),
                   onPressed: () {
                     ref.read(citizenMapProvider.notifier).startNavigation(facility);
@@ -476,13 +476,12 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          // FlutterMap Tile & Marker Layer
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
               initialCenter: mapState.userLocation,
               initialZoom: 15.0,
-              interactionOptions: const InteractionOptions(flags: InteractiveFlag.none), // Let card tap handle expansion
+              interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
               onTap: (_, __) {
                 ref.read(citizenMapProvider.notifier).setFullScreenMap(true);
               },
@@ -495,11 +494,17 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
               if (mapState.navigationRoute.isNotEmpty)
                 PolylineLayer(
                   polylines: [
+                    // Outer glow / road stroke
+                    Polyline(
+                      points: mapState.navigationRoute,
+                      strokeWidth: 7.0,
+                      color: const Color(0xFF1D4ED8),
+                    ),
+                    // Inner bright cyan navigation path
                     Polyline(
                       points: mapState.navigationRoute,
                       strokeWidth: 4.5,
-                      color: AppTheme.primaryTeal,
-                      isDotted: true,
+                      color: const Color(0xFF38BDF8),
                     ),
                   ],
                 ),
@@ -553,9 +558,11 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
   }
 
   // -------------------------------------------------------------
-  // MODE 2: FullScreen Interactive Map View
+  // MODE 2: FullScreen Interactive Map View with Google Maps Style Turn Banner
   // -------------------------------------------------------------
   Widget _buildFullScreenMapView(BuildContext context, CitizenMapState mapState) {
+    final isNavigating = mapState.navigatingFacility != null;
+
     return Stack(
       children: [
         // Fullscreen OpenStreetMap Tile Layer
@@ -563,7 +570,7 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
           mapController: _mapController,
           options: MapOptions(
             initialCenter: mapState.userLocation,
-            initialZoom: 15.0,
+            initialZoom: 15.5,
             onTap: (_, __) {
               ref.read(citizenMapProvider.notifier).selectFacility(null);
             },
@@ -576,11 +583,17 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
             if (mapState.navigationRoute.isNotEmpty)
               PolylineLayer(
                 polylines: [
+                  // Outer road stroke
+                  Polyline(
+                    points: mapState.navigationRoute,
+                    strokeWidth: 8.0,
+                    color: const Color(0xFF1D4ED8),
+                  ),
+                  // Inner bright walking polyline
                   Polyline(
                     points: mapState.navigationRoute,
                     strokeWidth: 5.0,
-                    color: AppTheme.primaryTeal,
-                    isDotted: true,
+                    color: const Color(0xFF38BDF8),
                   ),
                 ],
               ),
@@ -593,68 +606,137 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
           ],
         ),
 
-        // Floating Back / Collapse Button
-        Positioned(
-          top: 16,
-          left: 16,
-          child: FloatingActionButton.extended(
-            heroTag: 'collapse_map_btn',
-            backgroundColor: Colors.white,
-            foregroundColor: AppTheme.surfaceDark,
-            elevation: 4,
-            icon: const Icon(Icons.arrow_back_rounded, size: 18),
-            label: Text('Overview', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 13)),
-            onPressed: () {
-              ref.read(citizenMapProvider.notifier).setFullScreenMap(false);
-            },
-          ),
-        ),
-
-        // Floating Filter Chips at the top
-        Positioned(
-          top: 16,
-          left: 140,
-          right: 16,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                ActionChip(
-                  avatar: const Icon(Icons.tune_rounded, size: 16, color: Colors.white),
-                  label: Text('Filters (${mapState.filteredFacilities.length})', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
-                  backgroundColor: AppTheme.primaryTeal,
-                  elevation: 4,
-                  onPressed: () => _openFilterSheet(context, mapState),
+        // 1. Google Maps Style Turn-by-Turn Navigation Header
+        if (isNavigating)
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF064E3B), Color(0xFF0F766E)],
                 ),
-                const SizedBox(width: 6),
-                _buildQuickFilterPill(
-                  label: 'Restrooms',
-                  icon: Icons.wc_outlined,
-                  isSelected: mapState.filter.category == 'TOILET',
-                  onTap: () {
-                    final cur = mapState.filter.category;
-                    ref.read(citizenMapProvider.notifier).updateFilter(mapState.filter.copyWith(category: cur == 'TOILET' ? 'ALL' : 'TOILET'));
-                  },
-                ),
-                const SizedBox(width: 6),
-                _buildQuickFilterPill(
-                  label: 'Drinking Water',
-                  icon: Icons.water_drop_outlined,
-                  isSelected: mapState.filter.category == 'WATER',
-                  onTap: () {
-                    final cur = mapState.filter.category;
-                    ref.read(citizenMapProvider.notifier).updateFilter(mapState.filter.copyWith(category: cur == 'WATER' ? 'ALL' : 'WATER'));
-                  },
-                ),
-              ],
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 6)),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.directions_walk_rounded, color: Colors.white, size: 26),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          mapState.navigationResult?.currentInstruction ?? 'Walk along street route to facility',
+                          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Text(
+                              '${(mapState.navigationResult?.totalDistanceMeters ?? mapState.navigatingFacility?.distanceMeters ?? 0).toInt()} m remaining',
+                              style: GoogleFonts.outfit(color: const Color(0xFF4ADE80), fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '• ${mapState.navigatingFacility?.name}',
+                              style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Exit Navigation',
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    onPressed: () => ref.read(citizenMapProvider.notifier).clearNavigation(),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else ...[
+          // Floating Back / Collapse Button
+          Positioned(
+            top: 16,
+            left: 16,
+            child: FloatingActionButton.extended(
+              heroTag: 'collapse_map_btn',
+              backgroundColor: Colors.white,
+              foregroundColor: AppTheme.surfaceDark,
+              elevation: 4,
+              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+              label: Text('Overview', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 13)),
+              onPressed: () {
+                ref.read(citizenMapProvider.notifier).setFullScreenMap(false);
+              },
             ),
           ),
-        ),
+
+          // Floating Filter Chips at the top
+          Positioned(
+            top: 16,
+            left: 140,
+            right: 16,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ActionChip(
+                    avatar: const Icon(Icons.tune_rounded, size: 16, color: Colors.white),
+                    label: Text('Filters (${mapState.filteredFacilities.length})', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                    backgroundColor: AppTheme.primaryTeal,
+                    elevation: 4,
+                    onPressed: () => _openFilterSheet(context, mapState),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildQuickFilterPill(
+                    label: 'Restrooms',
+                    icon: Icons.wc_outlined,
+                    isSelected: mapState.filter.category == 'TOILET',
+                    onTap: () {
+                      final cur = mapState.filter.category;
+                      ref.read(citizenMapProvider.notifier).updateFilter(mapState.filter.copyWith(category: cur == 'TOILET' ? 'ALL' : 'TOILET'));
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _buildQuickFilterPill(
+                    label: 'Drinking Water',
+                    icon: Icons.water_drop_outlined,
+                    isSelected: mapState.filter.category == 'WATER',
+                    onTap: () {
+                      final cur = mapState.filter.category;
+                      ref.read(citizenMapProvider.notifier).updateFilter(mapState.filter.copyWith(category: cur == 'WATER' ? 'ALL' : 'WATER'));
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
 
         // Re-Center on Live GPS Pin
         Positioned(
           right: 16,
-          bottom: mapState.selectedFacility != null ? 360 : 32,
+          bottom: (mapState.selectedFacility != null || mapState.isArrived) ? 360 : 32,
           child: FloatingActionButton.small(
             heroTag: 'recenter_gps_btn',
             backgroundColor: Colors.white,
@@ -667,8 +749,57 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
           ),
         ),
 
-        // Bottom Facility Details Sheet / Card
-        if (mapState.selectedFacility != null)
+        // 2. Arrival Alert Banner when within 25m
+        if (mapState.isArrived && isNavigating)
+          Positioned(
+            bottom: 24,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF15803D),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 14),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('You have arrived!', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                        Text('Within 25m of ${mapState.navigatingFacility?.name}', style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF15803D),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    child: const Text('Rate (30m)'),
+                    onPressed: () {
+                      if (mapState.navigatingFacility != null) {
+                        showDialog(
+                          context: context,
+                          builder: (c) => RateFacilityDialog(facility: mapState.navigatingFacility!),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          )
+        // Bottom Facility Details Sheet / Card (when selected and not in arrived state)
+        else if (mapState.selectedFacility != null)
           Positioned(
             bottom: 0,
             left: 0,

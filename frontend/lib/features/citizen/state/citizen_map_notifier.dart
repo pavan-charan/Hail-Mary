@@ -5,6 +5,7 @@ import '../../../shared/models/facility_model.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/routing_service.dart';
 
 class CitizenMapFilter {
   final String category; // 'ALL', 'TOILET', 'WATER'
@@ -52,6 +53,8 @@ class CitizenMapState {
   final bool isLiveTrackingActive;
   final List<LatLng> navigationRoute;
   final FacilityModel? navigatingFacility;
+  final NavigationRouteResult? navigationResult;
+  final bool isArrived;
 
   CitizenMapState({
     this.allFacilities = const [],
@@ -66,6 +69,8 @@ class CitizenMapState {
     this.isLiveTrackingActive = true,
     this.navigationRoute = const [],
     this.navigatingFacility,
+    this.navigationResult,
+    this.isArrived = false,
   });
 
   CitizenMapState copyWith({
@@ -81,6 +86,8 @@ class CitizenMapState {
     bool? isLiveTrackingActive,
     List<LatLng>? navigationRoute,
     FacilityModel? navigatingFacility,
+    NavigationRouteResult? navigationResult,
+    bool? isArrived,
     bool clearSelected = false,
     bool clearNavigating = false,
   }) {
@@ -97,6 +104,8 @@ class CitizenMapState {
       isLiveTrackingActive: isLiveTrackingActive ?? this.isLiveTrackingActive,
       navigationRoute: clearNavigating ? const [] : (navigationRoute ?? this.navigationRoute),
       navigatingFacility: clearNavigating ? null : (navigatingFacility ?? this.navigatingFacility),
+      navigationResult: clearNavigating ? null : (navigationResult ?? this.navigationResult),
+      isArrived: clearNavigating ? false : (isArrived ?? this.isArrived),
     );
   }
 }
@@ -133,7 +142,6 @@ class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
           updateUserLocation(realPos);
         },
         onError: (err) {
-          // If browser/OS permissions are denied, fallback to simulated walk along Marine Drive
           startLiveWalkSimulation();
         },
       );
@@ -167,7 +175,6 @@ class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
       final rawFacilities = data.map((json) => FacilityModel.fromJson(json)).toList();
       _recalculateAndSetState(rawFacilities, state.userLocation);
     } catch (e) {
-      // Fallback sample data with diverse categories and markers
       final samples = _generateSampleFacilities();
       _recalculateAndSetState(samples, state.userLocation);
     }
@@ -184,25 +191,28 @@ class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
       );
     }).toList();
 
-    // Sort by distance ascending
     updatedList.sort((a, b) => (a.distanceMeters ?? 0).compareTo(b.distanceMeters ?? 0));
 
     final filtered = _applyFilters(updatedList, state.filter);
     final nearest = updatedList.isNotEmpty ? updatedList.first : null;
 
-    List<LatLng> newRoute = state.navigationRoute;
+    bool arrived = false;
     if (state.navigatingFacility != null) {
-      newRoute = [
+      final remaining = distanceCalculator.as(
+        LengthUnit.Meter,
         userPos,
         LatLng(state.navigatingFacility!.latitude, state.navigatingFacility!.longitude),
-      ];
+      );
+      if (remaining <= 25) {
+        arrived = true;
+      }
     }
 
     state = state.copyWith(
       allFacilities: updatedList,
       filteredFacilities: filtered,
       nearestFacility: nearest,
-      navigationRoute: newRoute,
+      isArrived: arrived,
       isLoading: false,
     );
   }
@@ -235,16 +245,25 @@ class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
     state = state.copyWith(isFullScreenMap: !state.isFullScreenMap);
   }
 
-  void startNavigation(FacilityModel facility) {
-    final route = [
-      state.userLocation,
-      LatLng(facility.latitude, facility.longitude),
-    ];
+  Future<void> startNavigation(FacilityModel facility) async {
     state = state.copyWith(
       navigatingFacility: facility,
-      navigationRoute: route,
       selectedFacility: facility,
       isFullScreenMap: true,
+      isArrived: false,
+      isLoading: true,
+    );
+
+    // Call RoutingService for real Google-Maps-grade street walking polyline & turn steps
+    final result = await RoutingService.calculateWalkingRoute(
+      origin: state.userLocation,
+      destination: LatLng(facility.latitude, facility.longitude),
+    );
+
+    state = state.copyWith(
+      navigationResult: result,
+      navigationRoute: result.polylinePoints,
+      isLoading: false,
     );
   }
 
