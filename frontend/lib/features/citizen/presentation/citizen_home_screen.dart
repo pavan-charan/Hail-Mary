@@ -125,6 +125,16 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
             ],
           ),
           IconButton(
+            icon: const Icon(Icons.gps_fixed_rounded, color: AppTheme.primaryTeal),
+            tooltip: 'Sync Device GPS Location',
+            onPressed: () {
+              ref.read(citizenMapProvider.notifier).requestDeviceLocation();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Acquiring real-time GPS location from your device...')),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.notifications_outlined, color: AppTheme.primaryTeal),
             tooltip: 'Notifications',
             onPressed: () {

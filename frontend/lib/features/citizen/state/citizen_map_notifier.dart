@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../shared/models/facility_model.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/services/location_service.dart';
 
 class CitizenMapFilter {
   final String category; // 'ALL', 'TOILET', 'WATER'
@@ -103,6 +104,7 @@ class CitizenMapState {
 class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
   final ApiClient _apiClient;
   Timer? _liveSimulationTimer;
+  StreamSubscription<LatLng>? _gpsSubscription;
   int _simulationStep = 0;
 
   CitizenMapNotifier(this._apiClient)
@@ -111,13 +113,39 @@ class CitizenMapNotifier extends StateNotifier<CitizenMapState> {
           filter: CitizenMapFilter(),
         )) {
     fetchNearbyFacilities();
-    startLiveWalkSimulation();
+    initRealGpsTracking();
   }
 
   @override
   void dispose() {
+    _gpsSubscription?.cancel();
     _liveSimulationTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> initRealGpsTracking() async {
+    try {
+      final currentPos = await LocationService.getCurrentPosition();
+      updateUserLocation(currentPos);
+
+      _gpsSubscription = LocationService.getPositionStream().listen(
+        (realPos) {
+          updateUserLocation(realPos);
+        },
+        onError: (err) {
+          // If browser/OS permissions are denied, fallback to simulated walk along Marine Drive
+          startLiveWalkSimulation();
+        },
+      );
+    } catch (_) {
+      startLiveWalkSimulation();
+    }
+  }
+
+  Future<void> requestDeviceLocation() async {
+    final currentPos = await LocationService.getCurrentPosition();
+    updateUserLocation(currentPos);
+    fetchNearbyFacilities();
   }
 
   Future<void> fetchFacilities() async {
