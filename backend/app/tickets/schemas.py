@@ -22,6 +22,20 @@ class TicketStatusUpdateSchema(BaseModel):
     face_image_base64: Optional[str] = None
     rejection_reason: Optional[str] = None
 
+class TicketVerificationSchema(BaseModel):
+    action: str = Field(..., description="'APPROVE' or 'REJECT'")
+    rejection_reason: Optional[str] = None
+    admin_id: Optional[int] = None
+
+class TimelineItemSchema(BaseModel):
+    id: int
+    event_type: str # STATUS_CHANGE, SLA_LOG, MEDIA_UPLOAD
+    title: str
+    description: Optional[str] = None
+    timestamp: datetime
+    performed_by: Optional[str] = None
+    extra_data: Optional[dict] = None
+
 class TicketResponseSchema(BaseModel):
     id: int
     ticket_id: str

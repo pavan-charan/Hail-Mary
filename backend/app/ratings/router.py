@@ -85,3 +85,16 @@ def submit_rating(data: RatingCreateSchema, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(rating)
     return rating
+
+@router.get("/facility/{facility_id}", response_model=List[RatingResponseSchema])
+def get_facility_ratings(facility_id: str, db: Session = Depends(get_db)):
+    facility = db.query(Facility).filter(
+        (Facility.facility_id == facility_id) | (Facility.id == int(facility_id) if facility_id.isdigit() else False)
+    ).first()
+    if not facility:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Facility not found")
+
+    ratings = db.query(FacilityRating).filter(
+        FacilityRating.facility_id == facility.id
+    ).order_by(FacilityRating.created_at.desc()).all()
+    return ratings

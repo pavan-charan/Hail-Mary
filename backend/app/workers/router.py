@@ -9,6 +9,8 @@ from app.sla.models import WorkerPenalty
 from app.workers.schemas import WorkerRegisterSchema, WorkerEnrollFaceSchema, WorkerResponseSchema
 from app.users.models import User, UserRole
 from app.face_verification.service import extract_face_embedding
+from app.tickets.schemas import TicketResponseSchema
+from app.tickets.models import TicketStatus
 
 router = APIRouter(prefix="/workers", tags=["Workers"])
 
@@ -97,3 +99,80 @@ def list_workers(ward: Optional[str] = None, db: Session = Depends(get_db)):
             current_longitude=w.current_longitude
         ))
     return results
+
+@router.get("/{worker_id}/tickets", response_model=List[TicketResponseSchema])
+def get_worker_tickets(
+    worker_id: int,
+    status: Optional[TicketStatus] = None,
+    db: Session = Depends(get_db)
+):
+    from app.tickets.models import Ticket, TicketPriority
+    from app.tickets.router import _format_ticket_response
+    from app.facilities.models import Facility
+
+    worker = db.query(LocalBodyWorker).filter(LocalBodyWorker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worker not found")
+
+    query = db.query(Ticket).filter(Ticket.assigned_worker_id == worker.id)
+    if status:
+        query = query.filter(Ticket.status == status)
+    
+    tickets = query.all()
+    
+    # Priority rank: CRITICAL (0), HIGH (1), MEDIUM (2), LOW (3)
+    priority_order = {
+        TicketPriority.CRITICAL: 0,
+        TicketPriority.HIGH: 1,
+        TicketPriority.MEDIUM: 2,
+        TicketPriority.LOW: 3
+    }
+    
+    tickets.sort(key=lambda t: (
+        priority_order.get(t.priority, 2),
+        t.expected_sla_deadline or t.created_at
+    ))
+
+    results = []
+    for t in tickets:
+        facility = db.query(Facility).filter(Facility.id == t.facility_id).first()
+        results.append(_format_ticket_response(t, facility, db))
+    return results
+
+@router.get("/{worker_id}/stats")
+def get_worker_stats(worker_id: int, db: Session = Depends(get_db)):
+    from app.tickets.models import Ticket, TicketStatus
+    from datetime import datetime, timezone, timedelta
+    
+    worker = db.query(LocalBodyWorker).filter(LocalBodyWorker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worker not found")
+
+    active_assigned = db.query(Ticket).filter(
+        Ticket.assigned_worker_id == worker.id,
+        Ticket.status == TicketStatus.ASSIGNED
+    ).count()
+
+    in_progress = db.query(Ticket).filter(
+        Ticket.assigned_worker_id == worker.id,
+        Ticket.status.in_([TicketStatus.REACHED, TicketStatus.REPAIRING])
+    ).count()
+
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    completed_today = db.query(Ticket).filter(
+        Ticket.assigned_worker_id == worker.id,
+        Ticket.status.in_([TicketStatus.COMPLETED, TicketStatus.RESOLVED]),
+        Ticket.updated_at >= today_start
+    ).count()
+
+    return {
+        "worker_id": worker.id,
+        "worker_code": worker.worker_code,
+        "ward": worker.ward,
+        "active_assigned": active_assigned,
+        "in_progress": in_progress,
+        "completed_today": completed_today,
+        "total_resolved": worker.total_resolved_count,
+        "penalty_count": worker.penalty_count
+    }
+

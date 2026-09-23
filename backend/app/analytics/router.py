@@ -32,6 +32,10 @@ def get_analytics_summary(db: Session = Depends(get_db)):
         Facility.confidence_score < 60.0
     ).count()
     
+    # Ward-level ticket breakdown
+    wards = db.query(Facility.ward, func.count(Ticket.id)).join(Ticket, Ticket.facility_id == Facility.id, isouter=True).group_by(Facility.ward).all()
+    ward_stats = [{"ward": w[0], "ticket_count": w[1]} for w in wards]
+
     return {
         "facilities": {
             "total": total_facilities,
@@ -49,7 +53,8 @@ def get_analytics_summary(db: Session = Depends(get_db)):
         "workers": {
             "total": total_workers,
             "total_penalties": total_penalties
-        }
+        },
+        "ward_performance": ward_stats
     }
 
 @router.get("/heatmaps")

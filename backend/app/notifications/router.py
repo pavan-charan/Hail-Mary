@@ -20,3 +20,13 @@ def mark_as_read(notification_id: int, db: Session = Depends(get_db)):
     notif.is_read = True
     db.commit()
     return {"success": True, "id": notification_id, "is_read": True}
+
+@router.post("/user/{user_id}/read-all")
+def mark_all_as_read(user_id: int, db: Session = Depends(get_db)):
+    db.query(Notification).filter(
+        Notification.user_id == user_id,
+        Notification.is_read == False
+    ).update({"is_read": True})
+    db.commit()
+    return {"success": True, "message": "All notifications marked as read"}
+

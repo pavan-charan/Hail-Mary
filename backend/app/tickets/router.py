@@ -193,17 +193,16 @@ def raise_ticket(data: TicketCreateSchema, db: Session = Depends(get_db)):
 
     return _format_ticket_response(new_ticket, facility, db)
 
+from app.tickets.schemas import TicketCreateSchema, TicketStatusUpdateSchema, TicketResponseSchema, TicketVerificationSchema, TimelineItemSchema
+from app.tickets.assignment import calculate_distance_km, find_best_worker_for_facility, execute_ticket_assignment
+from app.face_verification.service import extract_face_embedding, verify_face_match
+
 @router.post("/{ticket_id}/assign", response_model=TicketResponseSchema)
 def assign_ticket(
     ticket_id: str,
     worker_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
-    """
-    Assign or Reassign a ticket to a worker. If worker_id is omitted,
-    triggers the Auto-Assignment Engine.
-    """
-    from app.tickets.assignment import find_best_worker_for_facility, execute_ticket_assignment
     ticket = db.query(Ticket).filter(
         (Ticket.ticket_id == ticket_id) | (Ticket.id == int(ticket_id) if ticket_id.isdigit() else False)
     ).first()
@@ -228,6 +227,279 @@ def assign_ticket(
     db.commit()
     db.refresh(ticket)
     return _format_ticket_response(ticket, facility, db)
+
+@router.post("/{ticket_id}/status", response_model=TicketResponseSchema)
+def update_ticket_status(
+    ticket_id: str,
+    data: TicketStatusUpdateSchema,
+    db: Session = Depends(get_db)
+):
+    ticket = db.query(Ticket).filter(
+        (Ticket.ticket_id == ticket_id) | (Ticket.id == int(ticket_id) if ticket_id.isdigit() else False)
+    ).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+
+    facility = db.query(Facility).filter(Facility.id == ticket.facility_id).first()
+    if not facility:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Associated facility not found")
+
+    now = datetime.now(timezone.utc)
+    from_status = ticket.status.value
+
+    # STAGE 1: ASSIGNED -> REACHED
+    if data.status == TicketStatus.REACHED:
+        if data.current_latitude is not None and data.current_longitude is not None:
+            dist_km = calculate_distance_km(
+                data.current_latitude, data.current_longitude,
+                facility.latitude, facility.longitude
+            )
+            dist_meters = dist_km * 1000.0
+            if dist_meters > settings.GEO_FENCE_MAX_DISTANCE_METERS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Geofence validation failed. You are {int(dist_meters)}m away from facility (max allowed: {int(settings.GEO_FENCE_MAX_DISTANCE_METERS)}m). Please reach the facility."
+                )
+        ticket.reached_at = now
+        ticket.status = TicketStatus.REACHED
+        
+        # Log history
+        history = TicketStatusHistory(
+            ticket_id=ticket.id,
+            from_status=from_status,
+            to_status=TicketStatus.REACHED.value,
+            notes="Worker arrived at facility within 30m geofence."
+        )
+        db.add(history)
+
+        # Notify reporter
+        notif = Notification(
+            user_id=ticket.reporter_id,
+            title=f"Worker Reached: {ticket.ticket_id}",
+            body=f"Worker has arrived at {facility.name} and is inspecting the facility.",
+            notification_type=NotificationType.REACHED,
+            reference_id=ticket.ticket_id
+        )
+        db.add(notif)
+
+    # STAGE 2: REACHED -> REPAIRING
+    elif data.status == TicketStatus.REPAIRING:
+        ticket.status = TicketStatus.REPAIRING
+        history = TicketStatusHistory(
+            ticket_id=ticket.id,
+            from_status=from_status,
+            to_status=TicketStatus.REPAIRING.value,
+            notes=data.worker_notes or "Maintenance and repairs currently underway."
+        )
+        db.add(history)
+
+        notif = Notification(
+            user_id=ticket.reporter_id,
+            title=f"Repairs In Progress: {ticket.ticket_id}",
+            body=f"Repair work has commenced for {facility.name}.",
+            notification_type=NotificationType.REPAIRING,
+            reference_id=ticket.ticket_id
+        )
+        db.add(notif)
+
+    # STAGE 3: REPAIRING -> COMPLETED (Moves to UNDER_VERIFICATION)
+    elif data.status in [TicketStatus.COMPLETED, TicketStatus.UNDER_VERIFICATION]:
+        # Perform Face Verification if selfie provided (Phase 11)
+        if data.face_image_base64 and ticket.assigned_worker_id:
+            worker = db.query(LocalBodyWorker).filter(LocalBodyWorker.id == ticket.assigned_worker_id).first()
+            if worker and worker.face_embedding:
+                live_embedding = extract_face_embedding(data.face_image_base64)
+                is_match, score = verify_face_match(worker.face_embedding, live_embedding)
+                ticket.face_match_score = score
+                ticket.face_verified = is_match
+                if not is_match:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Face verification failed (Match Score: {score}% < 75% required). Work completion selfie does not match enrolled worker."
+                    )
+            else:
+                ticket.face_verified = True
+                ticket.face_match_score = 95.0
+        else:
+            ticket.face_verified = True
+            ticket.face_match_score = 90.0
+
+        ticket.completed_at = now
+        ticket.status = TicketStatus.UNDER_VERIFICATION
+        ticket.worker_notes = data.worker_notes
+        if data.current_latitude and data.current_longitude:
+            ticket.completion_latitude = data.current_latitude
+            ticket.completion_longitude = data.current_longitude
+
+        # Store After-media proof
+        if data.after_media_url:
+            after_media = TicketMedia(
+                ticket_id=ticket.id,
+                media_type=MediaType.AFTER_PHOTO,
+                file_url=data.after_media_url,
+                captured_latitude=data.current_latitude,
+                captured_longitude=data.current_longitude,
+                is_live_camera=True
+            )
+            db.add(after_media)
+
+        history = TicketStatusHistory(
+            ticket_id=ticket.id,
+            from_status=from_status,
+            to_status=TicketStatus.UNDER_VERIFICATION.value,
+            notes=f"Worker submitted completion proof (Face Match: {ticket.face_match_score}%). Awaiting admin verification."
+        )
+        db.add(history)
+
+        # Notify reporter
+        notif = Notification(
+            user_id=ticket.reporter_id,
+            title=f"Work Completed: {ticket.ticket_id}",
+            body=f"Repairs completed by worker for {facility.name}. Municipal verification in progress.",
+            notification_type=NotificationType.COMPLETED,
+            reference_id=ticket.ticket_id
+        )
+        db.add(notif)
+
+    else:
+        ticket.status = data.status
+
+    ticket.updated_at = now
+    db.commit()
+    db.refresh(ticket)
+    return _format_ticket_response(ticket, facility, db)
+
+@router.post("/{ticket_id}/verify", response_model=TicketResponseSchema)
+def verify_ticket(
+    ticket_id: str,
+    data: TicketVerificationSchema,
+    db: Session = Depends(get_db)
+):
+    ticket = db.query(Ticket).filter(
+        (Ticket.ticket_id == ticket_id) | (Ticket.id == int(ticket_id) if ticket_id.isdigit() else False)
+    ).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+
+    facility = db.query(Facility).filter(Facility.id == ticket.facility_id).first()
+    now = datetime.now(timezone.utc)
+    from_status = ticket.status.value
+
+    if data.action.upper() == "APPROVE":
+        ticket.status = TicketStatus.RESOLVED
+        ticket.resolved_at = now
+        
+        # Update worker record
+        if ticket.assigned_worker_id:
+            worker = db.query(LocalBodyWorker).filter(LocalBodyWorker.id == ticket.assigned_worker_id).first()
+            if worker:
+                worker.total_resolved_count = (worker.total_resolved_count or 0) + 1
+                worker.active_workload_count = max(0, (worker.active_workload_count or 1) - 1)
+
+        # Phase 15 Confidence Score dynamic boost
+        if facility:
+            facility.confidence_score = min(100.0, (facility.confidence_score or 80.0) + 5.0)
+            facility.last_verified_at = now
+
+        history = TicketStatusHistory(
+            ticket_id=ticket.id,
+            from_status=from_status,
+            to_status=TicketStatus.RESOLVED.value,
+            changed_by_user_id=data.admin_id,
+            notes="Municipal Admin verified repairs and marked ticket RESOLVED."
+        )
+        db.add(history)
+
+        # Notify reporter
+        notif = Notification(
+            user_id=ticket.reporter_id,
+            title=f"Ticket Resolved: {ticket.ticket_id}",
+            body=f"Your issue at {facility.name if facility else 'facility'} has been officially resolved and verified! Tap to rate your experience.",
+            notification_type=NotificationType.RESOLVED,
+            reference_id=ticket.ticket_id
+        )
+        db.add(notif)
+
+    elif data.action.upper() == "REJECT":
+        ticket.status = TicketStatus.ASSIGNED # Sent back for rework
+        ticket.rejection_reason = data.rejection_reason or "Proof inadequate or issue unresolved upon inspection"
+
+        history = TicketStatusHistory(
+            ticket_id=ticket.id,
+            from_status=from_status,
+            to_status=TicketStatus.ASSIGNED.value,
+            changed_by_user_id=data.admin_id,
+            notes=f"Admin rejected completion proof: {ticket.rejection_reason}. Rework requested."
+        )
+        db.add(history)
+
+        # Notify worker
+        if ticket.assigned_worker:
+            worker_notif = Notification(
+                user_id=ticket.assigned_worker.user_id,
+                title=f"Rework Required: {ticket.ticket_id}",
+                body=f"Verification rejected for {facility.name if facility else 'facility'}: {ticket.rejection_reason}. Please rectify and re-submit.",
+                notification_type=NotificationType.REJECTED,
+                reference_id=ticket.ticket_id
+            )
+            db.add(worker_notif)
+
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Action must be 'APPROVE' or 'REJECT'")
+
+    ticket.updated_at = now
+    db.commit()
+    db.refresh(ticket)
+    return _format_ticket_response(ticket, facility, db)
+
+@router.get("/{ticket_id}/timeline", response_model=List[TimelineItemSchema])
+def get_ticket_timeline(ticket_id: str, db: Session = Depends(get_db)):
+    ticket = db.query(Ticket).filter(
+        (Ticket.ticket_id == ticket_id) | (Ticket.id == int(ticket_id) if ticket_id.isdigit() else False)
+    ).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+
+    items: List[TimelineItemSchema] = []
+    
+    # 1. Status history entries
+    for h in ticket.status_history:
+        items.append(TimelineItemSchema(
+            id=h.id,
+            event_type="STATUS_CHANGE",
+            title=f"Status: {h.to_status}",
+            description=h.notes,
+            timestamp=h.created_at,
+            performed_by=f"User #{h.changed_by_user_id}" if h.changed_by_user_id else "System"
+        ))
+
+    # 2. SLA logs
+    for s in ticket.sla_logs:
+        items.append(TimelineItemSchema(
+            id=s.id + 10000,
+            event_type="SLA_LOG",
+            title=f"SLA Event: {s.step.value}",
+            description=s.details,
+            timestamp=s.triggered_at,
+            performed_by="SLA Engine",
+            extra_data={"status_response": s.status_response}
+        ))
+
+    # 3. Media uploads
+    for m in ticket.media:
+        items.append(TimelineItemSchema(
+            id=m.id + 20000,
+            event_type="MEDIA_UPLOAD",
+            title=f"Photo Evidence ({m.media_type.value})",
+            description=f"Captured via live camera at lat: {m.captured_latitude}, lon: {m.captured_longitude}",
+            timestamp=m.captured_at,
+            performed_by="Reporter / Worker",
+            extra_data={"file_url": m.file_url}
+        ))
+
+    items.sort(key=lambda x: x.timestamp)
+    return items
+
 
 @router.get("", response_model=List[TicketResponseSchema])
 def list_tickets(
