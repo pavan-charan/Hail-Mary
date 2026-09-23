@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -412,42 +413,29 @@ class _WorkerDashboardScreenState extends ConsumerState<WorkerDashboardScreen> w
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('🎉 Face Verified ($faceScore% Match)! Work order marked COMPLETED and submitted for Municipal Admin approval.'),
-                          backgroundColor: Colors.green,
+                          backgroundColor: const Color(0xFF16A34A),
                           duration: const Duration(seconds: 4),
                         ),
                       );
                     }
                   } catch (e) {
-                    // Local state fallback update for demo robustness
-                    setState(() {
-                      final idx = _workerTickets.indexWhere((item) => item.id == ticket.id);
-                      if (idx != -1) {
-                        _workerTickets[idx] = TicketModel(
-                          id: ticket.id,
-                          ticketId: ticket.ticketId,
-                          facilityId: ticket.facilityId,
-                          facilityCustomId: ticket.facilityCustomId,
-                          facilityName: ticket.facilityName,
-                          reporterId: ticket.reporterId,
-                          assignedWorkerId: ticket.assignedWorkerId,
-                          assignedWorkerName: ticket.assignedWorkerName,
-                          issueCategories: ticket.issueCategories,
-                          description: ticket.description,
-                          status: TicketStatus.COMPLETED,
-                          reportCount: ticket.reportCount,
-                          reporterLatitude: ticket.reporterLatitude,
-                          reporterLongitude: ticket.reporterLongitude,
-                          faceVerified: true,
-                          createdAt: ticket.createdAt,
-                        );
-                      }
-                    });
+                    String errorMsg = 'Biometric face verification failed. Please align your face clearly and try again.';
+                    if (e is DioException && e.response?.data != null) {
+                      errorMsg = e.response?.data['detail']?.toString() ?? errorMsg;
+                    }
 
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('🎉 Face Verified (95.4% Match)! Work order marked COMPLETED and submitted to Admin.'),
-                          backgroundColor: Colors.green,
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(errorMsg)),
+                            ],
+                          ),
+                          backgroundColor: const Color(0xFFDC2626),
+                          duration: const Duration(seconds: 5),
                         ),
                       );
                     }

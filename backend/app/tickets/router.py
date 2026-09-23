@@ -304,25 +304,33 @@ def update_ticket_status(
 
     # STAGE 3: REPAIRING -> COMPLETED (Moves to UNDER_VERIFICATION)
     elif data.status in [TicketStatus.COMPLETED, TicketStatus.UNDER_VERIFICATION]:
-        # Perform Face Verification if selfie provided (Phase 11)
+        # Perform Face Verification (Phase 11)
         if data.face_image_base64 and ticket.assigned_worker_id:
             worker = db.query(LocalBodyWorker).filter(LocalBodyWorker.id == ticket.assigned_worker_id).first()
             if worker and worker.face_embedding:
                 live_embedding = extract_face_embedding(data.face_image_base64)
+                if not live_embedding:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="No human face detected in the live camera capture. Please face the camera directly with good lighting."
+                    )
                 is_match, score = verify_face_match(worker.face_embedding, live_embedding)
                 ticket.face_match_score = score
                 ticket.face_verified = is_match
                 if not is_match:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Face verification failed (Match Score: {score}% < 75% required). Work completion selfie does not match enrolled worker."
+                        detail=f"Biometric verification failed (Match: {score}% < 75.0% required). Work completion selfie does not match the enrolled worker."
                     )
             else:
                 ticket.face_verified = True
-                ticket.face_match_score = 95.0
+                ticket.face_match_score = 90.0
         else:
-            ticket.face_verified = True
-            ticket.face_match_score = 90.0
+            ticket.face_verified = False
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Live biometric facial verification is required to complete this work order."
+            )
 
         ticket.completed_at = now
         ticket.status = TicketStatus.UNDER_VERIFICATION
