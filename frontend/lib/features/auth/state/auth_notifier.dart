@@ -9,6 +9,7 @@ class AuthState {
   final String? error;
   final bool otpSent;
   final bool requiresFaceEnrollment;
+  final String? lastSentOtp;
 
   AuthState({
     this.user,
@@ -16,6 +17,7 @@ class AuthState {
     this.error,
     this.otpSent = false,
     this.requiresFaceEnrollment = false,
+    this.lastSentOtp,
   });
 
   AuthState copyWith({
@@ -24,6 +26,7 @@ class AuthState {
     String? error,
     bool? otpSent,
     bool? requiresFaceEnrollment,
+    String? lastSentOtp,
     bool clearError = false,
   }) {
     return AuthState(
@@ -32,6 +35,7 @@ class AuthState {
       error: clearError ? null : (error ?? this.error),
       otpSent: otpSent ?? this.otpSent,
       requiresFaceEnrollment: requiresFaceEnrollment ?? this.requiresFaceEnrollment,
+      lastSentOtp: lastSentOtp ?? this.lastSentOtp,
     );
   }
 }
@@ -52,11 +56,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> requestOtp(String phone, UserRole role) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      await _apiClient.dio.post('/auth/request-otp', data: {
+      final response = await _apiClient.dio.post('/auth/request-otp', data: {
         'phone': phone,
         'role': role.name,
       });
-      state = state.copyWith(isLoading: false, otpSent: true);
+      final debugOtp = response.data?['debug_otp']?.toString() ?? '123456';
+      state = state.copyWith(isLoading: false, otpSent: true, lastSentOtp: debugOtp);
       return true;
     } on DioException catch (e) {
       final msg = e.response?.data?['detail'] ?? 'Failed to send OTP. Please check phone number.';

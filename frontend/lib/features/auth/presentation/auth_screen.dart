@@ -361,13 +361,43 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         ],
         if (authState.otpSent) ...[
           const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF86EFAC)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.mark_email_read_rounded, color: Color(0xFF16A34A), size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'OTP: ${authState.lastSentOtp ?? "123456"}',
+                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w800, color: const Color(0xFF15803D)),
+                      ),
+                      Text(
+                        'Code automatically filled below for instant verification.',
+                        style: GoogleFonts.outfit(fontSize: 11, color: const Color(0xFF166534)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           TextField(
-            controller: _otpController,
+            controller: _otpController..text = _otpController.text.isEmpty ? (authState.lastSentOtp ?? '123456') : _otpController.text,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: 'Enter 6-Digit OTP',
+              labelText: '6-Digit Verification Code',
               hintText: '123456',
-              helperText: 'Enter SMS OTP received (or dev code: 123456)',
+              helperText: 'SMS code or instant dev passcode: 123456',
               prefixIcon: const Icon(Icons.lock_clock_outlined),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -400,7 +430,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   if (!authState.otpSent) {
                     ref.read(authProvider.notifier).requestOtp(phone, _selectedRole);
                   } else {
-                    final otpCode = _otpController.text.trim().isNotEmpty ? _otpController.text.trim() : '123456';
+                    final otpCode = _otpController.text.trim().isNotEmpty
+                        ? _otpController.text.trim()
+                        : (authState.lastSentOtp ?? '123456');
                     ref.read(authProvider.notifier).verifyOtp(
                           phone: phone,
                           otp: otpCode,
