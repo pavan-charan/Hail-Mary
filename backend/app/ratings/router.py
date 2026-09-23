@@ -51,6 +51,19 @@ def submit_rating(data: RatingCreateSchema, db: Session = Depends(get_db)):
             db.commit()
             db.refresh(user)
 
+    # 24-Hour Rating Cooldown Check per user per facility
+    time_window = datetime.now(timezone.utc) - timedelta(hours=24)
+    recent_rating = db.query(FacilityRating).filter(
+        FacilityRating.facility_id == facility.id,
+        FacilityRating.user_id == user.id,
+        FacilityRating.created_at >= time_window
+    ).first()
+    if recent_rating:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rating cooldown active. You have already rated this facility within the last 24 hours."
+        )
+
     # Validation Rule: QR scanned OR GPS <= 30 meters
     is_gps_verified = True
     sub_lat = data.submission_latitude if data.submission_latitude is not None else facility.latitude
