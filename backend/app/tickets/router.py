@@ -171,20 +171,63 @@ def raise_ticket(data: TicketCreateSchema, db: Session = Depends(get_db)):
     )
     db.add(status_log)
 
-    # Dispatch notification to reporter
-    notif = Notification(
-        user_id=data.reporter_id,
-        title=f"Ticket Registered: {new_ticket.ticket_id}",
-        body=f"Your ticket for {facility.name} has been created. A local body worker will be assigned shortly.",
-        notification_type=NotificationType.TICKET_CREATED,
-        reference_id=new_ticket.ticket_id
-    )
-    db.add(notif)
+    # Phase 8: Auto-Assignment Engine Trigger
+    # Find candidate worker in same ward with lowest active workload & nearest proximity
+    from app.tickets.assignment import find_best_worker_for_facility, execute_ticket_assignment
+    best_worker = find_best_worker_for_facility(db, facility)
+    if best_worker:
+        execute_ticket_assignment(db, new_ticket, best_worker, facility)
+    else:
+        # Dispatch registration notification to reporter pending assignment
+        notif = Notification(
+            user_id=data.reporter_id,
+            title=f"Ticket Registered: {new_ticket.ticket_id}",
+            body=f"Your ticket for {facility.name} has been created. A local body worker will be assigned shortly.",
+            notification_type=NotificationType.TICKET_CREATED,
+            reference_id=new_ticket.ticket_id
+        )
+        db.add(notif)
 
     db.commit()
     db.refresh(new_ticket)
 
     return _format_ticket_response(new_ticket, facility, db)
+
+@router.post("/{ticket_id}/assign", response_model=TicketResponseSchema)
+def assign_ticket(
+    ticket_id: str,
+    worker_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Assign or Reassign a ticket to a worker. If worker_id is omitted,
+    triggers the Auto-Assignment Engine.
+    """
+    from app.tickets.assignment import find_best_worker_for_facility, execute_ticket_assignment
+    ticket = db.query(Ticket).filter(
+        (Ticket.ticket_id == ticket_id) | (Ticket.id == int(ticket_id) if ticket_id.isdigit() else False)
+    ).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+
+    facility = db.query(Facility).filter(Facility.id == ticket.facility_id).first()
+    if not facility:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Associated facility not found")
+
+    target_worker = None
+    if worker_id:
+        target_worker = db.query(LocalBodyWorker).filter(LocalBodyWorker.id == worker_id).first()
+        if not target_worker:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Worker with ID {worker_id} not found")
+    else:
+        target_worker = find_best_worker_for_facility(db, facility)
+        if not target_worker:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active worker available in municipality for assignment")
+
+    execute_ticket_assignment(db, ticket, target_worker, facility)
+    db.commit()
+    db.refresh(ticket)
+    return _format_ticket_response(ticket, facility, db)
 
 @router.get("", response_model=List[TicketResponseSchema])
 def list_tickets(

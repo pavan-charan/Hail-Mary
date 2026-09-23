@@ -23,7 +23,7 @@ A production-quality civic platform connecting Citizens, Local Body Workers, and
 - [x] **Phase 5: QR System & Demolished Guard** — Exact facility ID scanning, Report/Rate actions, demolished facility alert & nearest alternative suggestions.
 - [x] **Phase 6: Ticket Raising Engine** — Multi-issue selection, strict camera-only live capture enforcement, auto GPS & timestamp tagging, unique Ticket ID generation.
 - [x] **Phase 7: Duplicate Detection & Auto-Merge** — Active ticket duplicate detection within 12h window, issue set union, report count incrementing, priority auto-escalation, and merged citizen status alerts.
-- [ ] **Phase 8: Auto-Assignment Engine**
+- [x] **Phase 8: Auto-Assignment Engine** — Automated worker dispatch based on Same Ward, active workload minimization, proximity tie-breaking, 24-hour SLA deadline initialization, and real-time alerts.
 - [ ] **Phase 9: Worker Station & Queue**
 - [ ] **Phase 10: 4-Stage Maintenance Workflow**
 - [ ] **Phase 11: MediaPipe Face Verification**
