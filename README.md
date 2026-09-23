@@ -20,7 +20,7 @@ A production-quality civic platform connecting Citizens, Local Body Workers, and
 - [x] **Phase 2: Authentication Engine** — Citizen Phone OTP, Worker Admin-Registration + OTP + Face Enrollment, Admin Email/Password.
 - [x] **Phase 3: Facility Asset Management (Admin)** — Asset CRUD, auto Facility ID & QR generation, soft-demolition rules & audit restoration.
 - [x] **Phase 4: Citizen App & Map Discovery** — OpenStreetMap markers (Male/Female/Unisex/Water/Accessible), walking time calculation, multi-attribute filter sheet, facility detail modal.
-- [ ] **Phase 5: QR System & Demolished Guard**
+- [x] **Phase 5: QR System & Demolished Guard** — Exact facility ID scanning, Report/Rate actions, demolished facility alert & nearest alternative suggestions.
 - [ ] **Phase 6: Ticket Raising Engine**
 - [ ] **Phase 7: Duplicate Detection & Auto-Merge**
 - [ ] **Phase 8: Auto-Assignment Engine**
