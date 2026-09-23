@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/config/theme.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../shared/widgets/live_face_camera_view.dart';
 import '../state/auth_notifier.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -496,211 +497,26 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFEF3C7), Color(0xFFFDE68A)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFF59E0B), width: 1.2),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFD97706),
-                  shape: BoxShape.circle,
+        LiveFaceCameraView(
+          title: 'Mandatory Face Enrollment',
+          subtitle: 'Welcome, $workerName ($workerPhone)',
+          buttonText: 'Enroll Face & Activate Profile',
+          onImageCaptured: (base64Image) async {
+            final success = await ref.read(authProvider.notifier).enrollWorkerFace(
+                  phone: workerPhone,
+                  faceImageBase64: base64Image,
+                );
+            if (success && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('🎉 Face Biometric Enrolled! Redirecting to Worker Dashboard...'),
+                  backgroundColor: Color(0xFF16A34A),
                 ),
-                child: const Icon(Icons.face_retouching_natural, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Mandatory Face Enrollment',
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.w800, color: const Color(0xFF78350F), fontSize: 15),
-                    ),
-                    Text(
-                      'Welcome, $workerName ($workerPhone)',
-                      style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF92400E)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'In accordance with Kochi Municipal Corporation policy, all civic workers must register a live facial biometric profile before undertaking on-site sanitation & water maintenance tasks.',
-          style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[700], height: 1.4),
-        ),
-        const SizedBox(height: 16),
-
-        // Live Facial Bio-Scanner Viewport
-        Container(
-          height: 220,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0F172A),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.primaryTeal, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryTeal.withOpacity(0.25),
-                blurRadius: 15,
-                spreadRadius: 2,
-              )
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Background Grid
-              Positioned.fill(
-                child: Opacity(
-                  opacity: 0.1,
-                  child: GridPaper(
-                    color: Colors.cyanAccent,
-                    divisions: 2,
-                    subdivisions: 2,
-                  ),
-                ),
-              ),
-
-              // Face Placeholder Icon
-              const Icon(Icons.person, size: 100, color: Color(0xFF334155)),
-
-              // Facial Landmark Mesh Overlay
-              Container(
-                width: 140,
-                height: 170,
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppTheme.accentCyan, width: 2.5),
-                  borderRadius: BorderRadius.circular(70),
-                ),
-              ),
-
-              // Scanning Beam Animation
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.0, end: 1.0),
-                duration: const Duration(seconds: 2),
-                builder: (context, val, child) {
-                  return Positioned(
-                    top: 25 + (val * 170),
-                    left: 40,
-                    right: 40,
-                    child: Container(
-                      height: 2,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Colors.transparent, Color(0xFF38BDF8), Colors.transparent],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF38BDF8).withOpacity(0.8),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              // Corner Brackets
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Container(width: 18, height: 18, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFF38BDF8), width: 3), left: BorderSide(color: Color(0xFF38BDF8), width: 3)))),
-              ),
-              Positioned(
-                top: 16,
-                right: 16,
-                child: Container(width: 18, height: 18, decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFF38BDF8), width: 3), right: BorderSide(color: Color(0xFF38BDF8), width: 3)))),
-              ),
-              Positioned(
-                bottom: 16,
-                left: 16,
-                child: Container(width: 18, height: 18, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF38BDF8), width: 3), left: BorderSide(color: Color(0xFF38BDF8), width: 3)))),
-              ),
-              Positioned(
-                bottom: 16,
-                right: 16,
-                child: Container(width: 18, height: 18, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF38BDF8), width: 3), right: BorderSide(color: Color(0xFF38BDF8), width: 3)))),
-              ),
-
-              // Status Badge
-              Positioned(
-                bottom: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B).withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF22C55E), width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(color: Color(0xFF22C55E), shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Face Detected • Optimal Lighting',
-                        style: GoogleFonts.outfit(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0F766E),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          icon: const Icon(Icons.camera_alt_rounded, size: 20),
-          label: authState.isLoading
-              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : Text('Capture Face & Activate Profile', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
-          onPressed: authState.isLoading
-              ? null
-              : () async {
-                  const mockSelfie = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
-                  final success = await ref.read(authProvider.notifier).enrollWorkerFace(
-                        phone: workerPhone,
-                        faceImageBase64: mockSelfie,
-                      );
-                  if (success && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('🎉 Face Biometric Enrolled! Redirecting to Worker Dashboard...'),
-                        backgroundColor: Color(0xFF16A34A),
-                      ),
-                    );
-                    context.go('/worker');
-                  }
-                },
-        ),
-        const SizedBox(height: 10),
-        TextButton.icon(
-          icon: const Icon(Icons.arrow_back, size: 16),
-          label: const Text('Back / Switch Account'),
-          onPressed: () {
+              );
+              context.go('/worker');
+            }
+          },
+          onCancel: () {
             ref.read(authProvider.notifier).logout();
           },
         ),
