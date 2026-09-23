@@ -9,8 +9,14 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./sanitation_dev.db")
-    USE_POSTGIS: bool = False
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres.lsoxfxycwqykjwjingen:H2011IQI2ySWQjQc@aws-0-ap-south-1.pooler.supabase.com:6543/postgres")
+    USE_POSTGIS: bool = True
+    
+    # Supabase Configuration
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "https://lsoxfxycwqykjwjingen.supabase.co")
+    SUPABASE_PUBLISHABLE_KEY: str = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
+    SUPABASE_SECRET_KEY: str = os.getenv("SUPABASE_SECRET_KEY", "")
+    SUPABASE_JWKS_URL: str = os.getenv("SUPABASE_JWKS_URL", "https://lsoxfxycwqykjwjingen.supabase.co/auth/v1/.well-known/jwks.json")
     
     # Security
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "dev-super-secret-key-civic-sanitation-2026-xyz-987")
@@ -22,7 +28,7 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: Optional[str] = os.getenv("TWILIO_AUTH_TOKEN", None)
     TWILIO_PHONE_NUMBER: Optional[str] = os.getenv("TWILIO_PHONE_NUMBER", None)
     
-    # Firebase
+    # Firebase / Supabase Storage
     FIREBASE_CREDENTIALS_PATH: Optional[str] = os.getenv("FIREBASE_CREDENTIALS_PATH", None)
     FIREBASE_STORAGE_BUCKET: Optional[str] = os.getenv("FIREBASE_STORAGE_BUCKET", None)
     
