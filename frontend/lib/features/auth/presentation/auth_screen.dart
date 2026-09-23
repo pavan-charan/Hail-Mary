@@ -248,10 +248,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         : (role == UserRole.WORKER ? const Color(0xFF2563EB) : const Color(0xFF7C3AED));
 
     return Expanded(
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
+      child: Material(
+        color: isSelected ? Colors.white : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        elevation: isSelected ? 2 : 0,
+        shadowColor: Colors.black.withOpacity(0.08),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          mouseCursor: SystemMouseCursors.click,
           onTap: () {
             setState(() {
               _selectedRole = role;
@@ -267,22 +271,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             });
             ref.read(authProvider.notifier).resetOtpState();
           },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+          child: Container(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: isSelected ? Colors.white : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      )
-                    ]
-                  : null,
-            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
