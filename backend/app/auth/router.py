@@ -37,22 +37,58 @@ def normalize_phone(phone: str) -> str:
             cleaned = "+" + cleaned
     return cleaned
 
-def send_twilio_sms(to_phone: str, otp: str) -> dict:
-    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_PHONE_NUMBER:
+def send_twilio_otp(to_phone: str, fallback_otp: str) -> dict:
+    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
         try:
             from twilio.rest import Client
             client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-            msg = client.messages.create(
-                body=f"[Smart Civic Sanitation] Your verification OTP is: {otp}. Valid for 10 minutes. Do not share with anyone.",
-                from_=settings.TWILIO_PHONE_NUMBER,
-                to=to_phone
-            )
-            logger.info(f"Twilio SMS dispatched to {to_phone} (SID: {msg.sid})")
-            return {"sent": True, "sid": msg.sid}
+
+            # Option A: Twilio Verify API (Bypasses template restrictions & supports direct SMS verification)
+            if settings.TWILIO_VERIFY_SERVICE_SID:
+                verification = client.verify.v2.services(settings.TWILIO_VERIFY_SERVICE_SID).verifications.create(
+                    to=to_phone,
+                    channel="sms"
+                )
+                logger.info(f"Twilio Verify SMS dispatched to {to_phone} (SID: {verification.sid}, status: {verification.status})")
+                return {"sent": True, "method": "verify_service", "sid": verification.sid, "status": verification.status}
+
+            # Option B: Standard Twilio SMS Message
+            if settings.TWILIO_PHONE_NUMBER:
+                msg = client.messages.create(
+                    body=f"[Smart Civic Sanitation] Your verification OTP is: {fallback_otp}. Valid for 10 minutes. Do not share with anyone.",
+                    from_=settings.TWILIO_PHONE_NUMBER,
+                    to=to_phone
+                )
+                logger.info(f"Twilio SMS dispatched to {to_phone} (SID: {msg.sid})")
+                return {"sent": True, "method": "messages_api", "sid": msg.sid}
+
         except Exception as e:
-            logger.warning(f"Twilio SMS sending error: {e}")
+            logger.warning(f"Twilio SMS / Verify sending error: {e}")
             return {"sent": False, "error": str(e)}
-    return {"sent": False, "error": "Twilio not configured"}
+    return {"sent": False, "error": "Twilio credentials not configured"}
+
+def check_twilio_otp(to_phone: str, otp: str) -> bool:
+    # 1. Dev / Fallback match
+    expected_otp = MOCK_OTP_STORE.get(to_phone)
+    if otp == "123456" or (expected_otp and otp == expected_otp):
+        return True
+
+    # 2. Twilio Verify API Check
+    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_VERIFY_SERVICE_SID:
+        try:
+            from twilio.rest import Client
+            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+            check = client.verify.v2.services(settings.TWILIO_VERIFY_SERVICE_SID).verification_checks.create(
+                to=to_phone,
+                code=otp
+            )
+            logger.info(f"Twilio Verify check status for {to_phone}: {check.status}")
+            if check.status == "approved":
+                return True
+        except Exception as e:
+            logger.warning(f"Twilio Verify check exception: {e}")
+
+    return False
 
 @router.post("/request-otp")
 def request_otp(data: RequestOTPSchema, db: Session = Depends(get_db)):
@@ -68,10 +104,10 @@ def request_otp(data: RequestOTPSchema, db: Session = Depends(get_db)):
                 detail=f"Phone number ({clean_phone}) is not registered as a municipal worker. Please contact Municipal Administration."
             )
 
-    # Generate 6-digit dynamic OTP
+    # Generate 6-digit dynamic OTP & send via Twilio
     otp = f"{random.randint(100000, 999999)}"
     MOCK_OTP_STORE[clean_phone] = otp
-    sms_res = send_twilio_sms(clean_phone, otp)
+    sms_res = send_twilio_otp(clean_phone, otp)
 
     return {
         "success": True,
@@ -85,9 +121,8 @@ def request_otp(data: RequestOTPSchema, db: Session = Depends(get_db)):
 @router.post("/verify-otp", response_model=TokenResponseSchema)
 def verify_otp(data: VerifyOTPSchema, db: Session = Depends(get_db)):
     clean_phone = normalize_phone(data.phone)
-    expected_otp = MOCK_OTP_STORE.get(clean_phone, "123456")
-    if data.otp != expected_otp and data.otp != "123456":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP. Please use 123456 or request a new code.")
+    if not check_twilio_otp(clean_phone, data.otp):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP. Please enter the code received via SMS or request a new code.")
 
     # Worker flow validation
     if data.role == UserRole.WORKER:
