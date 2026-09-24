@@ -1,8 +1,6 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:camera/camera.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/config/theme.dart';
@@ -22,12 +20,9 @@ class QrScannerScreen extends ConsumerStatefulWidget {
 }
 
 class _QrScannerScreenState extends ConsumerState<QrScannerScreen> with SingleTickerProviderStateMixin {
-  CameraController? _cameraController;
-  List<CameraDescription> _cameras = [];
-  int _selectedCameraIndex = 0;
-  bool _isCameraInitializing = true;
-  String? _cameraError;
+  late MobileScannerController _scannerController;
   bool _isProcessing = false;
+  bool _isTorchOn = false;
   late AnimationController _laserController;
 
   final TextEditingController _manualIdController = TextEditingController(text: 'FAC-KOC-MD-A8F1');
@@ -63,147 +58,35 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> with SingleTi
   @override
   void initState() {
     super.initState();
+    _scannerController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+
     _laserController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    _initializeCamera();
   }
 
   @override
   void dispose() {
     _laserController.dispose();
-    _cameraController?.dispose();
+    _scannerController.dispose();
     _manualIdController.dispose();
     super.dispose();
   }
 
-  Future<void> _initializeCamera() async {
-    setState(() {
-      _isCameraInitializing = true;
-      _cameraError = null;
-    });
-
-    try {
-      _cameras = await availableCameras();
-      if (_cameras.isEmpty) {
-        setState(() {
-          _isCameraInitializing = false;
-          _cameraError = 'No webcam or camera device detected on this system.';
-        });
-        return;
-      }
-
-      // On Web/Laptop, prioritize front or first available webcam
-      int targetIndex = 0;
-      if (kIsWeb) {
-        targetIndex = 0;
-      } else {
-        final backIdx = _cameras.indexWhere((cam) => cam.lensDirection == CameraLensDirection.back);
-        if (backIdx != -1) targetIndex = backIdx;
-      }
-
-      _selectedCameraIndex = targetIndex;
-      await _startCameraController(_cameras[_selectedCameraIndex]);
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isCameraInitializing = false;
-          _cameraError = 'Camera access request: $e';
-        });
-      }
-    }
+  void _toggleTorch() async {
+    await _scannerController.toggleTorch();
+    setState(() => _isTorchOn = !_isTorchOn);
   }
 
-  Future<void> _startCameraController(CameraDescription camera) async {
-    try {
-      await _cameraController?.dispose();
-
-      _cameraController = CameraController(
-        camera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-      );
-
-      await _cameraController!.initialize();
-
-      if (mounted) {
-        setState(() {
-          _isCameraInitializing = false;
-          _cameraError = null;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isCameraInitializing = false;
-          _cameraError = 'Webcam initialization: $e';
-        });
-      }
-    }
+  void _switchCamera() async {
+    await _scannerController.switchCamera();
   }
 
-  Future<void> _switchCamera() async {
-    if (_cameras.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only 1 camera available on this device.')),
-      );
-      return;
-    }
-
-    setState(() => _isCameraInitializing = true);
-    _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras.length;
-    await _startCameraController(_cameras[_selectedCameraIndex]);
-  }
-
-  Future<void> _captureAndScanQr() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Camera not ready. Tap any quick test chip below to test instantly!')),
-      );
-      return;
-    }
-
-    setState(() => _isProcessing = true);
-
-    try {
-      final XFile photo = await _cameraController!.takePicture();
-      final bytes = await photo.readAsBytes();
-      final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-
-      final apiClient = ref.read(apiClientProvider);
-      final decodeRes = await apiClient.dio.post('/qr/decode-image', data: {
-        'image_base64': base64String,
-      });
-
-      final decodeData = decodeRes.data;
-      if (decodeData['success'] == true && decodeData['facility_id'] != null) {
-        final decodedId = decodeData['facility_id'].toString();
-        await _handleScannedCode(decodedId);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: Colors.orange[900],
-              content: Text(decodeData['message'] ?? 'No QR detected in photo. Hold the code closer and retry, or tap a test chip below.'),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.red[800],
-            content: Text('Error scanning camera photo: $e'),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
-  }
 
   Future<void> _handleScannedCode(String rawPayload) async {
     if (_isProcessing) return;
@@ -366,8 +249,6 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
-    final isCameraReady = !_isCameraInitializing && _cameraError == null && _cameraController != null && _cameraController!.value.isInitialized;
-
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
@@ -377,14 +258,14 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> with SingleTi
         title: Text('Scan Facility QR Code', style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
+            icon: Icon(_isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded, color: _isTorchOn ? Colors.amber : Colors.white),
+            tooltip: 'Toggle Flashlight',
+            onPressed: _toggleTorch,
+          ),
+          IconButton(
             icon: const Icon(Icons.flip_camera_ios_rounded),
             tooltip: 'Switch Camera',
             onPressed: _switchCamera,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Retry Camera',
-            onPressed: _initializeCamera,
           ),
         ],
       ),
@@ -395,59 +276,20 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> with SingleTi
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Camera Stream or Placeholder
-                if (isCameraReady)
-                  SizedBox.expand(
-                    child: FittedBox(
-                      fit: BoxFit.cover,
-                      child: SizedBox(
-                        width: _cameraController!.value.previewSize?.height ?? 400,
-                        height: _cameraController!.value.previewSize?.width ?? 600,
-                        child: CameraPreview(_cameraController!),
-                      ),
-                    ),
-                  )
-                else if (_isCameraInitializing)
-                  const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: AppTheme.primaryTeal),
-                        SizedBox(height: 16),
-                        Text('Opening webcam stream...', style: TextStyle(color: Colors.white70)),
-                      ],
-                    ),
-                  )
-                else
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.videocam_rounded, color: AppTheme.primaryTeal, size: 54),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Webcam Preview Ready',
-                            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Click "Allow" in Chrome or tap Request Access below:',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.outfit(color: Colors.white70, fontSize: 12),
-                          ),
-                          const SizedBox(height: 14),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryTeal, foregroundColor: Colors.white),
-                            icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                            label: const Text('Request Camera Permission'),
-                            onPressed: _initializeCamera,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                // Real-time MobileScanner Hardware Video Stream
+                MobileScanner(
+                  controller: _scannerController,
+                  onDetect: (BarcodeCapture capture) {
+                    if (_isProcessing) return;
+                    for (final barcode in capture.barcodes) {
+                      final code = barcode.rawValue;
+                      if (code != null && code.trim().isNotEmpty) {
+                        _handleScannedCode(code.trim());
+                        break;
+                      }
+                    }
+                  },
+                ),
 
                 // Viewfinder Target Frame
                 Container(
@@ -506,22 +348,19 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> with SingleTi
                   ),
                 ),
 
-                // Capture Button placed below viewfinder
+                // Helper text overlay
                 Positioned(
-                  bottom: 16,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryTeal,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                      elevation: 4,
+                  bottom: 20,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.65),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    icon: _isProcessing
-                        ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.qr_code_scanner_rounded, size: 18),
-                    label: Text(_isProcessing ? 'Analyzing Frame...' : 'Capture & Scan QR Code', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 13)),
-                    onPressed: _isProcessing ? null : _captureAndScanQr,
+                    child: Text(
+                      _isProcessing ? '⚡ QR Code Recognized!' : 'Align QR code within frame to auto-scan',
+                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
               ],
