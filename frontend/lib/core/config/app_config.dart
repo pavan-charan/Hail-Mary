@@ -3,8 +3,8 @@ class AppConfig {
   static const String appSubtitle = 'Sanitation & Drinking Water Platform';
   
   static String get baseUrl {
-    // 127.0.0.1 works seamlessly across Web, Desktop, and Physical Android device (via adb reverse)
-    return 'http://127.0.0.1:8000/api/v1';
+    // Production Render Cloud Backend API
+    return 'https://hail-mary-vuit.onrender.com/api/v1';
   }
   
   // Supabase Configuration
